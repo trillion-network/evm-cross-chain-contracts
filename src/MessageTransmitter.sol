@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.19;
 
 import "@memview-sol/contracts/TypedMemView.sol";
 import "./interfaces/IMessageTransmitter.sol";
