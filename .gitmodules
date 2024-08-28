@@ -4,3 +4,6 @@
 [submodule "lib/openzeppelin-contracts"]
 	path = lib/openzeppelin-contracts
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/memview-sol"]
+	path = lib/memview-sol
+	url = https://github.com/LayneHaber/memview-sol
