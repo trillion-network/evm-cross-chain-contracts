@@ -6,9 +6,21 @@ out = "out"
 libs = ["lib"]
 extra_output = ["storageLayout"]
 optimizer = true
+remappings = [
+    '@memview-sol/=lib/memview-sol',
+    '@openzeppelin/=lib/openzeppelin-contracts',
+    'ds-test/=lib/ds-test/src/',
+    'forge-std/=lib/forge-std/src/',
+]
 
 [rpc_endpoints]
-sepolia = "${SEPOLIA_RPC_URL}"
+sepolia = "${ETHEREUM_SEPOLIA_RPC_URL}"
+optimismSepolia = "${OPTIMISM_SEPOLIA_RPC_URL}"
+
+[etherscan]
+sepolia = { key = "${ETHERSCAN_SEPOLIA_API_KEY}" }
+optimismSepolia = { key = "${ETHERSCAN_OPTIMISM_SEPOLIA_API_KEY}" }
+
 
 [fuzz]
 runs = 10000

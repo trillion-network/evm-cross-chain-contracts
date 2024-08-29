@@ -15,10 +15,10 @@
  */
 pragma solidity 0.8.20;
 
-import "../../src/interfaces/IMintBurnToken.sol";
+import "../../src/interfaces/IBurnToken.sol";
 
 // TODO [BRAAV-12776] replace this with real FiatToken
-contract MockMintBurnToken is IMintBurnToken {
+contract MockBurnToken is IBurnToken {
 
     uint256 internal _totalSupply = 0;
 
@@ -65,25 +65,6 @@ contract MockMintBurnToken is IMintBurnToken {
         returns (uint256)
     {
         return allowed[owner][spender];
-    }
-
-    /**
-     * @dev Function to mint tokens
-     * @param _to The address that will receive the minted tokens.
-     * @param _amount The amount of tokens to mint. Must be less than or equal
-     * to the minterAllowance of the caller.
-     * @return A boolean that indicates if the operation was successful.
-     */
-    function mint(address _to, uint256 _amount)
-        external
-        override
-        returns (bool)
-    {
-        _totalSupply = _totalSupply + _amount;
-        balances[_to] = balances[_to] + _amount;
-        emit Mint(msg.sender, _to, _amount);
-        emit Transfer(address(0), _to, _amount);
-        return true;
     }
 
     /**

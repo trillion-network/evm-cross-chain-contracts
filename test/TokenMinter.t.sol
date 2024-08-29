@@ -15,13 +15,14 @@
  */
 pragma solidity 0.8.20;
 
+import "../src/TokenBurner.sol";
 import "../src/messages/Message.sol";
-import "../src/TokenMinter.sol";
 import "./TestUtils.sol";
-import "./mocks/MockMintBurnToken.sol";
+import "./mocks/MockBurnToken.sol";
 import "../lib/forge-std/src/Test.sol";
+import "../src/interfaces/IBurnToken.sol";
 
-contract TokenMinterTest is Test, TestUtils {
+contract TokenBurnerTest is Test, TestUtils {
     /**
      * @notice Emitted when a token pair is linked
      * @param localToken local token to support
@@ -64,9 +65,9 @@ contract TokenMinterTest is Test, TestUtils {
 
     uint32 remoteDomain = 0;
 
-    IMintBurnToken localToken;
-    IMintBurnToken remoteToken;
-    TokenMinter tokenMinter;
+    IBurnToken localToken;
+    IBurnToken remoteToken;
+    TokenBurner tokenMinter;
 
     address localTokenAddress;
     bytes32 remoteTokenBytes32;
@@ -76,74 +77,13 @@ contract TokenMinterTest is Test, TestUtils {
     address pauser = vm.addr(1509);
 
     function setUp() public {
-        tokenMinter = new TokenMinter(tokenController);
-        localToken = new MockMintBurnToken();
+        tokenMinter = new TokenBurner(tokenController);
+        localToken = new MockBurnToken();
         localTokenAddress = address(localToken);
-        remoteToken = new MockMintBurnToken();
+        remoteToken = new MockBurnToken();
         remoteTokenBytes32 = Message.addressToBytes32(address(remoteToken));
         tokenMinter.addLocalTokenMessenger(localTokenMessenger);
         tokenMinter.updatePauser(pauser);
-    }
-
-    function testMint_succeeds(uint256 _amount, address _localToken) public {
-        _mint(_amount);
-    }
-
-    function testMint_revertsOnUnsupportedMintToken(uint256 _amount) public {
-        vm.startPrank(localTokenMessenger);
-        vm.expectRevert("Mint token not supported");
-        tokenMinter.mint(
-            sourceDomain,
-            remoteTokenBytes32,
-            mintRecipientAddress,
-            _amount
-        );
-        vm.stopPrank();
-    }
-
-    function testMint_revertsIfCallerIsNotRegisteredTokenMessenger(
-        uint256 _amount
-    ) public {
-        vm.prank(nonTokenMessenger);
-        vm.expectRevert("Caller not local TokenMessenger");
-        tokenMinter.mint(
-            sourceDomain,
-            remoteTokenBytes32,
-            mintRecipientAddress,
-            _amount
-        );
-    }
-
-    function testMint_revertsWhenPaused(
-        address _mintToken,
-        address _to,
-        uint256 _amount,
-        bytes32 _remoteToken
-    ) public {
-        vm.prank(pauser);
-        tokenMinter.pause();
-        vm.expectRevert("Pausable: paused");
-        tokenMinter.mint(sourceDomain, _remoteToken, _to, _amount);
-
-        // Mint works again after unpause
-        vm.prank(pauser);
-        tokenMinter.unpause();
-        _mint(_amount);
-    }
-
-    function testMint_revertsOnFailedTokenMint(address _to, uint256 _amount)
-        public
-    {
-        _linkTokenPair(localTokenAddress);
-        vm.mockCall(
-            localTokenAddress,
-            abi.encodeWithSelector(MockMintBurnToken.mint.selector),
-            abi.encode(false)
-        );
-        vm.startPrank(localTokenMessenger);
-        vm.expectRevert("Mint operation failed");
-        tokenMinter.mint(sourceDomain, remoteTokenBytes32, _to, _amount);
-        vm.stopPrank();
     }
 
     function testBurn_succeeds(
@@ -160,7 +100,7 @@ contract TokenMinterTest is Test, TestUtils {
             _allowedBurnAmount
         );
 
-        _mintAndBurn(_amount, _localToken);
+        _burn(_amount, _localToken);
     }
 
     function testBurn_revertsOnUnsupportedBurnToken(uint256 _amount) public {
@@ -197,7 +137,7 @@ contract TokenMinterTest is Test, TestUtils {
         // Mint works again after unpause
         vm.prank(pauser);
         tokenMinter.unpause();
-        _mintAndBurn(_burnAmount, localTokenAddress);
+        _burn(_burnAmount, localTokenAddress);
     }
 
     function testBurn_revertsWhenAmountExceedsNonZeroBurnLimit(
@@ -361,11 +301,11 @@ contract TokenMinterTest is Test, TestUtils {
     }
 
     function testAddLocalTokenMessenger_succeeds() public {
-        TokenMinter _tokenMinter = new TokenMinter(tokenController);
+        TokenBurner _tokenMinter = new TokenBurner(tokenController);
         addLocalTokenMessenger(_tokenMinter, localTokenMessenger);
     }
 
-    function testAddLocalTokenMessenger_revertsWhenLocalTokenMinterAlreadySet()
+    function testAddLocalTokenMessenger_revertsWhenLocalTokenBurnerAlreadySet()
         public
     {
         address _tokenMessenger = vm.addr(1700);
@@ -388,7 +328,7 @@ contract TokenMinterTest is Test, TestUtils {
     }
 
     function testRemoveLocalTokenMessenger_succeeds() public {
-        TokenMinter _tokenMinter = new TokenMinter(tokenController);
+        TokenBurner _tokenMinter = new TokenBurner(tokenController);
         addLocalTokenMessenger(_tokenMinter, localTokenMessenger);
         removeLocalTokenMessenger(_tokenMinter);
     }
@@ -396,7 +336,7 @@ contract TokenMinterTest is Test, TestUtils {
     function testRemoveLocalTokenMessenger_revertsWhenNoLocalTokenMessengerSet()
         public
     {
-        TokenMinter _tokenMinter = new TokenMinter(tokenController);
+        TokenBurner _tokenMinter = new TokenBurner(tokenController);
         vm.expectRevert("No local TokenMessenger is set");
         _tokenMinter.removeLocalTokenMessenger();
     }
@@ -455,31 +395,7 @@ contract TokenMinterTest is Test, TestUtils {
         );
     }
 
-    function _mint(uint256 _amount) internal {
-        _linkTokenPair(localTokenAddress);
-
-        // Assert balance of recipient and total supply is initially 0
-        assertEq(localToken.balanceOf(mintRecipientAddress), 0);
-        assertEq(localToken.totalSupply(), 0);
-
-        vm.startPrank(localTokenMessenger);
-
-        tokenMinter.mint(
-            remoteDomain,
-            remoteTokenBytes32,
-            mintRecipientAddress,
-            _amount
-        );
-        vm.stopPrank();
-
-        // Assert balance of recipient and total supply is incremented by mint amount
-        assertEq(localToken.balanceOf(mintRecipientAddress), _amount);
-        assertEq(localToken.totalSupply(), _amount);
-    }
-
-    function _mintAndBurn(uint256 _amount, address _localToken) internal {
-        _mint(_amount);
-
+    function _burn(uint256 _amount, address _localToken) internal {
         address mockTokenMessenger = vm.addr(1507);
 
         vm.prank(mintRecipientAddress);

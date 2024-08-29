@@ -15,9 +15,10 @@
  */
 pragma solidity 0.8.20;
 
-import "../src/TokenMinter.sol";
+import "../src/TokenBurner.sol";
+import "../src/messages/Message.sol";
 import "../lib/forge-std/src/Test.sol";
-import "./mocks/MockMintBurnToken.sol";
+import "./mocks/MockBurnToken.sol";
 
 contract TestUtils is Test {
     /**
@@ -87,19 +88,19 @@ contract TestUtils is Test {
         "00000000000000000000000000000000000000000000000000000000000000000";
 
     function linkTokenPair(
-        TokenMinter tokenMinter,
+        TokenBurner tokenBurner,
         address _localToken,
         uint32 _remoteDomain,
         bytes32 _remoteTokenBytes32
     ) public {
         vm.prank(tokenController);
-        tokenMinter.linkTokenPair(
+        tokenBurner.linkTokenPair(
             address(_localToken),
             _remoteDomain,
             _remoteTokenBytes32
         );
 
-        address _actualLocalToken = tokenMinter.getLocalToken(
+        address _actualLocalToken = tokenBurner.getLocalToken(
             _remoteDomain,
             _remoteTokenBytes32
         );
@@ -108,27 +109,27 @@ contract TestUtils is Test {
     }
 
     function addLocalTokenMessenger(
-        TokenMinter _tokenMinter,
+        TokenBurner _tokenBurner,
         address _localTokenMessenger
     ) public {
-        assertEq(_tokenMinter.localTokenMessenger(), address(0));
+        assertEq(_tokenBurner.localTokenMessenger(), address(0));
 
         vm.expectEmit(true, true, true, true);
         emit LocalTokenMessengerAdded(_localTokenMessenger);
-        _tokenMinter.addLocalTokenMessenger(_localTokenMessenger);
+        _tokenBurner.addLocalTokenMessenger(_localTokenMessenger);
 
-        assertEq(_tokenMinter.localTokenMessenger(), _localTokenMessenger);
+        assertEq(_tokenBurner.localTokenMessenger(), _localTokenMessenger);
     }
 
-    function removeLocalTokenMessenger(TokenMinter _tokenMinter) public {
-        address _currentTokenMessenger = _tokenMinter.localTokenMessenger();
+    function removeLocalTokenMessenger(TokenBurner _tokenBurner) public {
+        address _currentTokenMessenger = _tokenBurner.localTokenMessenger();
         assertTrue(_currentTokenMessenger != address(0));
 
         vm.expectEmit(true, true, true, true);
         emit LocalTokenMessengerRemoved(_currentTokenMessenger);
-        _tokenMinter.removeLocalTokenMessenger();
+        _tokenBurner.removeLocalTokenMessenger();
 
-        assertEq(_tokenMinter.localTokenMessenger(), address(0));
+        assertEq(_tokenBurner.localTokenMessenger(), address(0));
     }
 
     function expectRevertWithWrongOwner() public {
@@ -149,19 +150,16 @@ contract TestUtils is Test {
     ) public {
         // Send erc20 to _rescuableContractAddress
         Rescuable _rescuableContract = Rescuable(_rescuableContractAddress);
-        MockMintBurnToken _mockMintBurnToken = new MockMintBurnToken();
+        MockBurnToken _mockBurnToken = new MockBurnToken();
 
-        // _rescueRecipient's initial balance of _mockMintBurnToken is 0
-        assertEq(_mockMintBurnToken.balanceOf(_rescueRecipient), 0);
+        // _rescueRecipient's initial balance of _mockBurnToken is 0
+        assertEq(_mockBurnToken.balanceOf(_rescueRecipient), 0);
 
-        // Mint _mockMintBurnToken to _rescueRecipient
-        _mockMintBurnToken.mint(_rescueRecipient, _amount);
-
-        // _rescueRecipient accidentally sends _mockMintBurnToken to the _rescuableContractAddress
+        // _rescueRecipient accidentally sends _mockBurnToken to the _rescuableContractAddress
         vm.prank(_rescueRecipient);
-        _mockMintBurnToken.transfer(_rescuableContractAddress, _amount);
+        _mockBurnToken.transfer(_rescuableContractAddress, _amount);
         assertEq(
-            _mockMintBurnToken.balanceOf(_rescuableContractAddress),
+            _mockBurnToken.balanceOf(_rescuableContractAddress),
             _amount
         );
 
@@ -173,13 +171,13 @@ contract TestUtils is Test {
         // Rescue erc20 to _rescueRecipient
         vm.prank(_rescuer);
         _rescuableContract.rescueERC20(
-            _mockMintBurnToken,
+            _mockBurnToken,
             _rescueRecipient,
             _amount
         );
 
         // Assert funds are rescued
-        assertEq(_mockMintBurnToken.balanceOf(_rescueRecipient), _amount);
+        assertEq(_mockBurnToken.balanceOf(_rescueRecipient), _amount);
     }
 
     function assertContractIsPausable(

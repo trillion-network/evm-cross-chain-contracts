@@ -15,22 +15,20 @@
  */
 pragma solidity 0.8.20;
 
-import "./interfaces/ITokenMinter.sol";
-import "./interfaces/IMintBurnToken.sol";
+import "./interfaces/ITokenBurner.sol";
+import "./interfaces/IBurnToken.sol";
 import "./roles/Pausable.sol";
 import "./roles/Rescuable.sol";
 import "./roles/TokenController.sol";
 import "./TokenMessenger.sol";
 
 /**
- * @title TokenMinter
- * @notice Token Minter and Burner
- * @dev Maintains registry of local mintable tokens and corresponding tokens on remote domains.
- * This registry can be used by caller to determine which token on local domain to mint for a
- * burned token on a remote domain, and vice versa.
+ * @title TokenBurner
+ * @notice Token Burner
+ * @dev Maintains registry of local burnable tokens and corresponding tokens on remote domains.
  * It is assumed that local and remote tokens are fungible at a constant 1:1 exchange rate.
  */
-contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
+contract TokenBurner is ITokenBurner, TokenController, Pausable, Rescuable {
     // ============ Events ============
     /**
      * @notice Emitted when a local TokenMessenger is added
@@ -47,7 +45,7 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
     event LocalTokenMessengerRemoved(address localTokenMessenger);
 
     // ============ State Variables ============
-    // Local TokenMessenger with permission to call mint and burn on this TokenMinter
+    // Local TokenMessenger with permission to call mint and burn on this TokenBurner
     address public localTokenMessenger;
 
     // ============ Modifiers ============
@@ -68,42 +66,9 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
     }
 
     // ============ External Functions  ============
-    /**
-     * @notice Mints `amount` of local tokens corresponding to the
-     * given (`sourceDomain`, `burnToken`) pair, to `to` address.
-     * @dev reverts if the (`sourceDomain`, `burnToken`) pair does not
-     * map to a nonzero local token address. This mapping can be queried using
-     * getLocalToken().
-     * @param sourceDomain Source domain where `burnToken` was burned.
-     * @param burnToken Burned token address as bytes32.
-     * @param to Address to receive minted tokens, corresponding to `burnToken`,
-     * on this domain.
-     * @param amount Amount of tokens to mint. Must be less than or equal
-     * to the minterAllowance of this TokenMinter for given `_mintToken`.
-     * @return mintToken token minted.
-     */
-    function mint(
-        uint32 sourceDomain,
-        bytes32 burnToken,
-        address to,
-        uint256 amount
-    )
-        external
-        override
-        whenNotPaused
-        onlyLocalTokenMessenger
-        returns (address mintToken)
-    {
-        address _mintToken = _getLocalToken(sourceDomain, burnToken);
-        require(_mintToken != address(0), "Mint token not supported");
-        IMintBurnToken _token = IMintBurnToken(_mintToken);
-
-        require(_token.mint(to, amount), "Mint operation failed");
-        return _mintToken;
-    }
 
     /**
-     * @notice Burn tokens owned by this TokenMinter.
+     * @notice Burn tokens owned by this TokenBurner.
      * @param burnToken burnable token address.
      * @param burnAmount amount of tokens to burn. Must be
      * > 0, and <= maximum burn amount per message.
@@ -115,13 +80,13 @@ contract TokenMinter is ITokenMinter, TokenController, Pausable, Rescuable {
         onlyLocalTokenMessenger
         onlyWithinBurnLimit(burnToken, burnAmount)
     {
-        IMintBurnToken _token = IMintBurnToken(burnToken);
+        IBurnToken _token = IBurnToken(burnToken);
         _token.burn(burnAmount);
     }
 
     /**
      * @notice Add TokenMessenger for the local domain. Only this TokenMessenger
-     * has permission to call mint() and burn() on this TokenMinter.
+     * has permission to call mint() and burn() on this TokenBurner.
      * @dev Reverts if a TokenMessenger is already set for the local domain.
      * @param newLocalTokenMessenger The address of the new TokenMessenger on the local domain.
      */

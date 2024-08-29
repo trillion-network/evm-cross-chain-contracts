@@ -115,7 +115,7 @@ abstract contract TokenController {
     }
 
     /**
-     * @notice Links a pair of local and remote tokens to be supported by this TokenMinter.
+     * @notice Links a pair of local and remote tokens to be supported by this TokenBurner.
      * @dev Associates a (`remoteToken`, `localToken`) pair by updating remoteTokensToLocalTokens mapping.
      * Reverts if the remote token (for the given `remoteDomain`) already maps to a nonzero local token.
      * Note:
@@ -145,7 +145,7 @@ abstract contract TokenController {
     }
 
     /**
-     * @notice Unlinks a pair of local and remote tokens for this TokenMinter.
+     * @notice Unlinks a pair of local and remote tokens for this TokenBurner.
      * @dev Removes link from `remoteToken`, to `localToken` for given `remoteDomain`
      * by updating remoteTokensToLocalTokens mapping.
      * Reverts if the remote token (for the given `remoteDomain`) already maps to the zero address.

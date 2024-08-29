@@ -15,22 +15,18 @@
  */
 pragma solidity 0.8.20;
 
+import "../../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
+
 /**
- * @title IMessageHandler
- * @notice Handles messages on destination domain forwarded from
- * an IReceiver
+ * @title IBurnToken
+ * @notice interface for burnable ERC20 token
  */
-interface IMessageHandler {
+interface IBurnToken is IERC20 {
     /**
-     * @notice handles an incoming message from a Receiver
-     * @param sourceDomain the source domain of the message
-     * @param sender the sender of the message
-     * @param messageBody The message raw bytes
-     * @return success bool, true if successful
+     * @dev allows a minter to burn some of its own tokens
+     * Validates that caller is a minter and that sender is not blacklisted
+     * amount is less than or equal to the minter's account balance
+     * @param amount uint256 the amount of tokens to be burned
      */
-    function handleReceiveMessage(
-        uint32 sourceDomain,
-        bytes32 sender,
-        bytes calldata messageBody
-    ) external returns (bool);
+    function burn(uint256 amount) external;
 }

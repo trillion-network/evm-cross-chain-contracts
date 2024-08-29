@@ -1,34 +1,14 @@
-/*
- * Copyright (c) 2022, Circle Internet Financial Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 pragma solidity 0.8.20;
 
-import "./interfaces/IMessageHandler.sol";
-import "./interfaces/ITokenMinter.sol";
-import "./interfaces/IMintBurnToken.sol";
-import "./interfaces/IMessageTransmitter.sol";
-import "./messages/BurnMessage.sol";
-import "./messages/Message.sol";
+import "./interfaces/ITokenBurner.sol";
+import "./interfaces/IBurnToken.sol";
 import "./roles/Rescuable.sol";
 
 /**
  * @title TokenMessenger
- * @notice Sends messages and receives messages to/from MessageTransmitters
- * and to/from TokenMinters
+ * @notice Just support depositForBurn and emit DepositForBurn event
  */
-contract TokenMessenger is IMessageHandler, Rescuable {
+contract TokenMessenger is Rescuable {
     // ============ Events ============
     /**
      * @notice Emitted when a DepositForBurn message is sent
@@ -54,18 +34,6 @@ contract TokenMessenger is IMessageHandler, Rescuable {
     );
 
     /**
-     * @notice Emitted when tokens are minted
-     * @param mintRecipient recipient address of minted tokens
-     * @param amount amount of minted tokens
-     * @param mintToken contract address of minted token
-     */
-    event MintAndWithdraw(
-        address indexed mintRecipient,
-        uint256 amount,
-        address indexed mintToken
-    );
-
-    /**
      * @notice Emitted when a remote TokenMessenger is added
      * @param domain remote domain
      * @param tokenMessenger TokenMessenger on remote domain
@@ -80,74 +48,32 @@ contract TokenMessenger is IMessageHandler, Rescuable {
     event RemoteTokenMessengerRemoved(uint32 domain, bytes32 tokenMessenger);
 
     /**
-     * @notice Emitted when the local minter is added
-     * @param localMinter address of local minter
-     * @notice Emitted when the local minter is added
+     * @notice Emitted when the local burner is added
+     * @param localBurner address of local burner
+     * @notice Emitted when the local burner is added
      */
-    event LocalMinterAdded(address localMinter);
+    event LocalBurnerAdded(address localBurner);
 
     /**
-     * @notice Emitted when the local minter is removed
-     * @param localMinter address of local minter
-     * @notice Emitted when the local minter is removed
+     * @notice Emitted when the local burner is removed
+     * @param localBurner address of local burner
+     * @notice Emitted when the local burner is removed
      */
-    event LocalMinterRemoved(address localMinter);
+    event LocalBurnerRemoved(address localBurner);
 
-    // ============ Libraries ============
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-    using BurnMessage for bytes29;
-    using Message for bytes29;
-
-    // ============ State Variables ============
-    // Local Message Transmitter responsible for sending and receiving messages to/from remote domains
-    IMessageTransmitter public immutable localMessageTransmitter;
-
-    // Version of message body format
-    uint32 public immutable messageBodyVersion;
-
-    // Minter responsible for minting and burning tokens on the local domain
-    ITokenMinter public localMinter;
+    // Burner responsible for burning tokens on the local domain
+    ITokenBurner public localBurner;
 
     // Valid TokenMessengers on remote domains
     mapping(uint32 => bytes32) public remoteTokenMessengers;
 
-    // ============ Modifiers ============
-    /**
-     * @notice Only accept messages from a registered TokenMessenger contract on given remote domain
-     * @param domain The remote domain
-     * @param tokenMessenger The address of the TokenMessenger contract for the given remote domain
-     */
-    modifier onlyRemoteTokenMessenger(uint32 domain, bytes32 tokenMessenger) {
-        require(
-            _isRemoteTokenMessenger(domain, tokenMessenger),
-            "Remote TokenMessenger unsupported"
-        );
-        _;
-    }
+    // Next available nonce from this source domain
+    uint64 public nextAvailableNonce;
 
-    /**
-     * @notice Only accept messages from the registered message transmitter on local domain
-     */
-    modifier onlyLocalMessageTransmitter() {
-        // Caller must be the registered message transmitter for this domain
-        require(_isLocalMessageTransmitter(), "Invalid message transmitter");
-        _;
-    }
+    uint256 public fee;
 
     // ============ Constructor ============
-    /**
-     * @param _messageTransmitter Message transmitter address
-     * @param _messageBodyVersion Message body version
-     */
-    constructor(address _messageTransmitter, uint32 _messageBodyVersion) {
-        require(
-            _messageTransmitter != address(0),
-            "MessageTransmitter not set"
-        );
-        localMessageTransmitter = IMessageTransmitter(_messageTransmitter);
-        messageBodyVersion = _messageBodyVersion;
-    }
+    constructor() {}
 
     // ============ External Functions  ============
     /**
@@ -171,7 +97,8 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         uint32 destinationDomain,
         bytes32 mintRecipient,
         address burnToken
-    ) external returns (uint64 _nonce) {
+    ) payable external returns (uint64 _nonce) {
+        require(msg.value == fee, "invalid payment");
         return
             _depositForBurn(
                 amount,
@@ -226,123 +153,9 @@ contract TokenMessenger is IMessageHandler, Rescuable {
             );
     }
 
-    /**
-     * @notice Replace a BurnMessage to change the mint recipient and/or
-     * destination caller. Allows the sender of a previous BurnMessage
-     * (created by depositForBurn or depositForBurnWithCaller)
-     * to send a new BurnMessage to replace the original.
-     * The new BurnMessage will reuse the amount and burn token of the original,
-     * without requiring a new deposit.
-     * @dev The new message will reuse the original message's nonce. For a
-     * given nonce, all replacement message(s) and the original message are
-     * valid to broadcast on the destination domain, until the first message
-     * at the nonce confirms, at which point all others are invalidated.
-     * Note: The msg.sender of the replaced message must be the same as the
-     * msg.sender of the original message.
-     * @param originalMessage original message bytes (to replace)
-     * @param originalAttestation original attestation bytes
-     * @param newDestinationCaller the new destination caller, which may be the
-     * same as the original destination caller, a new destination caller, or an empty
-     * destination caller (bytes32(0), indicating that any destination caller is valid.)
-     * @param newMintRecipient the new mint recipient, which may be the same as the
-     * original mint recipient, or different.
-     */
-    function replaceDepositForBurn(
-        bytes calldata originalMessage,
-        bytes calldata originalAttestation,
-        bytes32 newDestinationCaller,
-        bytes32 newMintRecipient
-    ) external {
-        bytes29 _originalMsg = originalMessage.ref(0);
-        _originalMsg._validateMessageFormat();
-        bytes29 _originalMsgBody = _originalMsg._messageBody();
-        _originalMsgBody._validateBurnMessageFormat();
-
-        bytes32 _originalMsgSender = _originalMsgBody._getMessageSender();
-        // _originalMsgSender must match msg.sender of original message
-        require(
-            msg.sender == Message.bytes32ToAddress(_originalMsgSender),
-            "Invalid sender for message"
-        );
-        require(
-            newMintRecipient != bytes32(0),
-            "Mint recipient must be nonzero"
-        );
-
-        bytes32 _burnToken = _originalMsgBody._getBurnToken();
-        uint256 _amount = _originalMsgBody._getAmount();
-
-        bytes memory _newMessageBody = BurnMessage._formatMessage(
-            messageBodyVersion,
-            _burnToken,
-            newMintRecipient,
-            _amount,
-            _originalMsgSender
-        );
-
-        localMessageTransmitter.replaceMessage(
-            originalMessage,
-            originalAttestation,
-            _newMessageBody,
-            newDestinationCaller
-        );
-
-        emit DepositForBurn(
-            _originalMsg._nonce(),
-            Message.bytes32ToAddress(_burnToken),
-            _amount,
-            msg.sender,
-            newMintRecipient,
-            _originalMsg._destinationDomain(),
-            _originalMsg._recipient(),
-            newDestinationCaller
-        );
-    }
-
-    /**
-     * @notice Handles an incoming message received by the local MessageTransmitter,
-     * and takes the appropriate action. For a burn message, mints the
-     * associated token to the requested recipient on the local domain.
-     * @dev Validates the local sender is the local MessageTransmitter, and the
-     * remote sender is a registered remote TokenMessenger for `remoteDomain`.
-     * @param remoteDomain The domain where the message originated from.
-     * @param sender The sender of the message (remote TokenMessenger).
-     * @param messageBody The message body bytes.
-     * @return success Bool, true if successful.
-     */
-    function handleReceiveMessage(
-        uint32 remoteDomain,
-        bytes32 sender,
-        bytes calldata messageBody
-    )
-        external
-        override
-        onlyLocalMessageTransmitter
-        onlyRemoteTokenMessenger(remoteDomain, sender)
-        returns (bool)
-    {
-        bytes29 _msg = messageBody.ref(0);
-        _msg._validateBurnMessageFormat();
-        require(
-            _msg._getVersion() == messageBodyVersion,
-            "Invalid message body version"
-        );
-
-        bytes32 _mintRecipient = _msg._getMintRecipient();
-        bytes32 _burnToken = _msg._getBurnToken();
-        uint256 _amount = _msg._getAmount();
-
-        ITokenMinter _localMinter = _getLocalMinter();
-
-        _mintAndWithdraw(
-            address(_localMinter),
-            remoteDomain,
-            _burnToken,
-            Message.bytes32ToAddress(_mintRecipient),
-            _amount
-        );
-
-        return true;
+    function setFee(uint256 _fee) external onlyOwner {
+        require(_fee >= 0, "Invalid fee");
+        fee = _fee;
     }
 
     /**
@@ -384,33 +197,33 @@ contract TokenMessenger is IMessageHandler, Rescuable {
     }
 
     /**
-     * @notice Add minter for the local domain.
-     * @dev Reverts if a minter is already set for the local domain.
-     * @param newLocalMinter The address of the minter on the local domain.
+     * @notice Add burner for the local domain.
+     * @dev Reverts if a burner is already set for the local domain.
+     * @param newLocalBurner The address of the burner on the local domain.
      */
-    function addLocalMinter(address newLocalMinter) external onlyOwner {
-        require(newLocalMinter != address(0), "Zero address not allowed");
+    function addLocalBurner(address newLocalBurner) external onlyOwner {
+        require(newLocalBurner != address(0), "Zero address not allowed");
 
         require(
-            address(localMinter) == address(0),
-            "Local minter is already set."
+            address(localBurner) == address(0),
+            "Local burner is already set."
         );
 
-        localMinter = ITokenMinter(newLocalMinter);
+        localBurner = ITokenBurner(newLocalBurner);
 
-        emit LocalMinterAdded(newLocalMinter);
+        emit LocalBurnerAdded(newLocalBurner);
     }
 
     /**
-     * @notice Remove the minter for the local domain.
-     * @dev Reverts if the minter of the local domain is not set.
+     * @notice Remove the burner for the local domain.
+     * @dev Reverts if the burner of the local domain is not set.
      */
-    function removeLocalMinter() external onlyOwner {
-        address _localMinterAddress = address(localMinter);
-        require(_localMinterAddress != address(0), "No local minter is set.");
+    function removeLocalBurner() external onlyOwner {
+        address _localBurnerAddress = address(localBurner);
+        require(_localBurnerAddress != address(0), "No local burner is set.");
 
-        delete localMinter;
-        emit LocalMinterRemoved(_localMinterAddress);
+        delete localBurner;
+        emit LocalBurnerRemoved(_localBurnerAddress);
     }
 
     // ============ Internal Utils ============
@@ -420,7 +233,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
      * @param _amount amount of tokens to burn (must be non-zero)
      * @param _destinationDomain destination domain
      * @param _mintRecipient address of mint recipient on destination domain
-     * @param _burnToken address of contract to burn deposited tokens, on local domain
+     * @param _burnTokenAddress address of contract to burn deposited tokens, on local domain
      * @param _destinationCaller caller on the destination domain, as bytes32
      * @return nonce unique nonce reserved by message
      */
@@ -428,7 +241,7 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         uint256 _amount,
         uint32 _destinationDomain,
         bytes32 _mintRecipient,
-        address _burnToken,
+        address _burnTokenAddress,
         bytes32 _destinationCaller
     ) internal returns (uint64 nonce) {
         require(_amount > 0, "Amount must be nonzero");
@@ -438,37 +251,23 @@ contract TokenMessenger is IMessageHandler, Rescuable {
             _destinationDomain
         );
 
-        ITokenMinter _localMinter = _getLocalMinter();
-        IMintBurnToken _mintBurnToken = IMintBurnToken(_burnToken);
+        ITokenBurner _localBurner = _getLocalBurner();
+        IBurnToken _burnToken = IBurnToken(_burnTokenAddress);
         require(
-            _mintBurnToken.transferFrom(
+            _burnToken.transferFrom(
                 msg.sender,
-                address(_localMinter),
+                address(_localBurner),
                 _amount
             ),
             "Transfer operation failed"
         );
-        _localMinter.burn(_burnToken, _amount);
+        _localBurner.burn(_burnTokenAddress, _amount);
 
-        // Format message body
-        bytes memory _burnMessage = BurnMessage._formatMessage(
-            messageBodyVersion,
-            Message.addressToBytes32(_burnToken),
-            _mintRecipient,
-            _amount,
-            Message.addressToBytes32(msg.sender)
-        );
-
-        uint64 _nonceReserved = _sendDepositForBurnMessage(
-            _destinationDomain,
-            _destinationTokenMessenger,
-            _destinationCaller,
-            _burnMessage
-        );
+        uint64 _nonceReserved = _reserveAndIncrementNonce();
 
         emit DepositForBurn(
             _nonceReserved,
-            _burnToken,
+            _burnTokenAddress,
             _amount,
             msg.sender,
             _mintRecipient,
@@ -478,67 +277,6 @@ contract TokenMessenger is IMessageHandler, Rescuable {
         );
 
         return _nonceReserved;
-    }
-
-    /**
-     * @notice Sends a BurnMessage through the local message transmitter
-     * @dev calls local message transmitter's sendMessage() function if `_destinationCaller` == bytes32(0),
-     * or else calls sendMessageWithCaller().
-     * @param _destinationDomain destination domain
-     * @param _destinationTokenMessenger address of registered TokenMessenger contract on destination domain, as bytes32
-     * @param _destinationCaller caller on the destination domain, as bytes32. If `_destinationCaller` == bytes32(0),
-     * any address can call receiveMessage() on destination domain.
-     * @param _burnMessage formatted BurnMessage bytes (message body)
-     * @return nonce unique nonce reserved by message
-     */
-    function _sendDepositForBurnMessage(
-        uint32 _destinationDomain,
-        bytes32 _destinationTokenMessenger,
-        bytes32 _destinationCaller,
-        bytes memory _burnMessage
-    ) internal returns (uint64 nonce) {
-        if (_destinationCaller == bytes32(0)) {
-            return
-                localMessageTransmitter.sendMessage(
-                    _destinationDomain,
-                    _destinationTokenMessenger,
-                    _burnMessage
-                );
-        } else {
-            return
-                localMessageTransmitter.sendMessageWithCaller(
-                    _destinationDomain,
-                    _destinationTokenMessenger,
-                    _destinationCaller,
-                    _burnMessage
-                );
-        }
-    }
-
-    /**
-     * @notice Mints tokens to a recipient
-     * @param _tokenMinter address of TokenMinter contract
-     * @param _remoteDomain domain where burned tokens originate from
-     * @param _burnToken address of token burned
-     * @param _mintRecipient recipient address of minted tokens
-     * @param _amount amount of minted tokens
-     */
-    function _mintAndWithdraw(
-        address _tokenMinter,
-        uint32 _remoteDomain,
-        bytes32 _burnToken,
-        address _mintRecipient,
-        uint256 _amount
-    ) internal {
-        ITokenMinter _minter = ITokenMinter(_tokenMinter);
-        address _mintToken = _minter.mint(
-            _remoteDomain,
-            _burnToken,
-            _mintRecipient,
-            _amount
-        );
-
-        emit MintAndWithdraw(_mintRecipient, _amount, _mintToken);
     }
 
     /**
@@ -557,39 +295,21 @@ contract TokenMessenger is IMessageHandler, Rescuable {
     }
 
     /**
-     * @notice return the local minter address if it is set, else revert.
-     * @return local minter as ITokenMinter.
+     * @notice return the local burner address if it is set, else revert.
+     * @return local burner as ITokenBurner.
      */
-    function _getLocalMinter() internal view returns (ITokenMinter) {
-        require(address(localMinter) != address(0), "Local minter is not set");
-        return localMinter;
+    function _getLocalBurner() internal view returns (ITokenBurner) {
+        require(address(localBurner) != address(0), "Local burner is not set");
+        return localBurner;
     }
 
     /**
-     * @notice Return true if the given remote domain and TokenMessenger is registered
-     * on this TokenMessenger.
-     * @param _domain The remote domain of the message.
-     * @param _tokenMessenger The address of the TokenMessenger on remote domain.
-     * @return true if a remote TokenMessenger is registered for `_domain` and `_tokenMessenger`,
-     * on this TokenMessenger.
+     * Reserve and increment next available nonce
+     * @return nonce reserved
      */
-    function _isRemoteTokenMessenger(uint32 _domain, bytes32 _tokenMessenger)
-        internal
-        view
-        returns (bool)
-    {
-        return
-            _tokenMessenger != bytes32(0) &&
-            remoteTokenMessengers[_domain] == _tokenMessenger;
-    }
-
-    /**
-     * @notice Returns true if the message sender is the local registered MessageTransmitter
-     * @return true if message sender is the registered local message transmitter
-     */
-    function _isLocalMessageTransmitter() internal view returns (bool) {
-        return
-            address(localMessageTransmitter) != address(0) &&
-            msg.sender == address(localMessageTransmitter);
+    function _reserveAndIncrementNonce() internal returns (uint64) {
+        uint64 _nonceReserved = nextAvailableNonce;
+        nextAvailableNonce = nextAvailableNonce + 1;
+        return _nonceReserved;
     }
 }

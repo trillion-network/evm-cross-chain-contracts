@@ -15,7 +15,7 @@
  */
 pragma solidity 0.8.20;
 
-import "./Ownable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @dev forked from https://github.com/OpenZeppelin/openzeppelin-contracts/blob/7c5f6bc2c8743d83443fa46395d75f2f3f99054a/contracts/access/Ownable2Step.sol
@@ -40,6 +40,8 @@ abstract contract Ownable2Step is Ownable {
         address indexed previousOwner,
         address indexed newOwner
     );
+
+    constructor() Ownable(_msgSender()) {}
 
     /**
      * @dev Returns the address of the pending owner.

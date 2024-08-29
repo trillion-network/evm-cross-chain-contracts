@@ -17,12 +17,12 @@ pragma solidity 0.8.20;
 
 import "../../lib/forge-std/src/Test.sol";
 import "../../src/roles/Ownable2Step.sol";
-import "../../src/TokenMinter.sol";
+import "../../src/TokenBurner.sol";
 
 /**
  * @dev Negative unit tests of third party OZ contract, Ownable2Step.
  * (Positive tests for transferOwnership and acceptOwnership are covered in
- * MessageTransmitter.t.sol, TokenMessenger.t.sol, and TokenMinter.t.sol.)
+ * MessageTransmitter.t.sol, TokenMessenger.t.sol, and TokenBurner.t.sol.)
  */
 contract Ownable2StepTest is Test {
     event OwnershipTransferStarted(
@@ -42,7 +42,7 @@ contract Ownable2StepTest is Test {
     function setUp() public {
         // (arbitrary token controller param needed for instantiation)
         vm.prank(initialOwner);
-        ownable = new TokenMinter(initialOwner);
+        ownable = new TokenBurner(initialOwner);
         assertEq(ownable.owner(), initialOwner);
     }
 

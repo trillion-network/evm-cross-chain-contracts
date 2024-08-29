@@ -18,16 +18,11 @@ pragma solidity 0.8.20;
 import "../lib/forge-std/src/Test.sol";
 import "../src/TokenMessenger.sol";
 import "../src/messages/Message.sol";
-import "../src/messages/BurnMessage.sol";
-import "../src/MessageTransmitter.sol";
-import "../src/TokenMinter.sol";
-import "./mocks/MockMintBurnToken.sol";
+import "../src/TokenBurner.sol";
+import "./mocks/MockBurnToken.sol";
 import "./TestUtils.sol";
 
 contract TokenMessengerTest is Test, TestUtils {
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-    using BurnMessage for bytes29;
 
     // Events
     /**
@@ -110,51 +105,31 @@ contract TokenMessengerTest is Test, TestUtils {
 
     TokenMessenger localTokenMessenger;
     TokenMessenger destTokenMessenger;
-    MessageTransmitter localMessageTransmitter =
-        new MessageTransmitter(
-            localDomain,
-            attester,
-            maxMessageBodySize,
-            version
-        );
-    MessageTransmitter remoteMessageTransmitter =
-        new MessageTransmitter(
-            remoteDomain,
-            attester,
-            maxMessageBodySize,
-            version
-        );
-    MockMintBurnToken localToken = new MockMintBurnToken();
-    MockMintBurnToken destToken = new MockMintBurnToken();
-    TokenMinter localTokenMinter = new TokenMinter(tokenController);
-    TokenMinter destTokenMinter = new TokenMinter(tokenController);
+    MockBurnToken localToken = new MockBurnToken();
+    MockBurnToken destToken = new MockBurnToken();
+    TokenBurner localTokenBurner = new TokenBurner(tokenController);
+    TokenBurner destTokenBurner = new TokenBurner(tokenController);
 
     function setUp() public {
-        localTokenMessenger = new TokenMessenger(
-            address(localMessageTransmitter),
-            messageBodyVersion
-        );
+        localTokenMessenger = new TokenMessenger();
 
         linkTokenPair(
-            localTokenMinter,
+            localTokenBurner,
             address(localToken),
             remoteDomain,
             remoteTokenMessenger
         );
 
         linkTokenPair(
-            destTokenMinter,
+            destTokenBurner,
             address(destToken),
             localDomain,
             Message.addressToBytes32(address(localToken))
         );
 
-        localTokenMessenger.addLocalMinter(address(localTokenMinter));
+        localTokenMessenger.addLocalBurner(address(localTokenBurner));
 
-        destTokenMessenger = new TokenMessenger(
-            address(remoteMessageTransmitter),
-            messageBodyVersion
-        );
+        destTokenMessenger = new TokenMessenger();
 
         remoteTokenMessenger = Message.addressToBytes32(
             address(destTokenMessenger)
@@ -165,25 +140,15 @@ contract TokenMessengerTest is Test, TestUtils {
             remoteTokenMessenger
         );
 
-        destTokenMessenger.addLocalMinter(address(destTokenMinter));
+        destTokenMessenger.addLocalBurner(address(destTokenBurner));
 
         destTokenMessenger.addRemoteTokenMessenger(
             localDomain,
             Message.addressToBytes32(address(localTokenMessenger))
         );
 
-        localTokenMinter.addLocalTokenMessenger(address(localTokenMessenger));
-        destTokenMinter.addLocalTokenMessenger(address(destTokenMessenger));
-    }
-
-    function testConstructor_rejectsZeroAddressLocalMessageTransmitter()
-        public
-    {
-        vm.expectRevert("MessageTransmitter not set");
-        localTokenMessenger = new TokenMessenger(
-            address(0),
-            messageBodyVersion
-        );
+        localTokenBurner.addLocalTokenMessenger(address(localTokenMessenger));
+        destTokenBurner.addLocalTokenMessenger(address(destTokenMessenger));
     }
 
     function testDepositForBurn_revertsIfNoRemoteTokenMessengerExistsForDomain(
@@ -194,10 +159,7 @@ contract TokenMessengerTest is Test, TestUtils {
         vm.assume(_amount > 0 && _amount <= maxBurnAmountPerMessage);
         bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
 
-        TokenMessenger _tokenMessenger = new TokenMessenger(
-            _relayerAddress,
-            messageBodyVersion
-        );
+        TokenMessenger _tokenMessenger = new TokenMessenger();
 
         vm.expectRevert("No TokenMessenger for domain");
         _tokenMessenger.depositForBurn(
@@ -213,10 +175,7 @@ contract TokenMessengerTest is Test, TestUtils {
         bytes32 _mintRecipient
     ) public {
         vm.assume(_mintRecipient != bytes32(0));
-        TokenMessenger _tokenMessenger = new TokenMessenger(
-            address(localMessageTransmitter),
-            messageBodyVersion
-        );
+        TokenMessenger _tokenMessenger = new TokenMessenger();
 
         _tokenMessenger.addRemoteTokenMessenger(
             remoteDomain,
@@ -270,7 +229,7 @@ contract TokenMessengerTest is Test, TestUtils {
         _amount = bound(_amount, allowedBurnAmount + 1, mintAmount);
 
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
-        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
+        uint64 _nonce = localTokenMessenger.nextAvailableNonce();
 
         _setupDepositForBurn(
             _mintRecipient,
@@ -316,7 +275,6 @@ contract TokenMessengerTest is Test, TestUtils {
         vm.assume(_mintRecipient != bytes32(0));
         _amount = bound(_amount, _transferAmount + 1, _approveAmount);
 
-        localToken.mint(owner, _transferAmount);
         address _spender = address(localTokenMessenger);
 
         vm.prank(owner);
@@ -338,7 +296,7 @@ contract TokenMessengerTest is Test, TestUtils {
         vm.prank(owner);
         vm.mockCall(
             address(localToken),
-            abi.encodeWithSelector(MockMintBurnToken.transferFrom.selector),
+            abi.encodeWithSelector(MockBurnToken.transferFrom.selector),
             abi.encode(false)
         );
         vm.assume(_amount > 0 && _amount <= maxBurnAmountPerMessage);
@@ -369,20 +327,6 @@ contract TokenMessengerTest is Test, TestUtils {
         vm.assume(_mintRecipientAddr != address(0));
         _amount = bound(_amount, 1, allowedBurnAmount);
 
-        uint64 _nonce0 = localMessageTransmitter.sendMessage(
-            remoteDomain,
-            recipient,
-            messageBody
-        );
-        assertEq(uint256(_nonce0), 0);
-
-        uint64 _nonce1 = localMessageTransmitter.sendMessage(
-            remoteDomain,
-            recipient,
-            messageBody
-        );
-        assertEq(uint256(_nonce1), 1);
-
         _depositForBurn(_mintRecipientAddr, _amount, allowedBurnAmount);
     }
 
@@ -392,20 +336,6 @@ contract TokenMessengerTest is Test, TestUtils {
     ) public {
         vm.assume(_mintRecipientAddr != address(0));
         _amount = bound(_amount, 1, allowedBurnAmount);
-
-        uint64 _nonce0 = localMessageTransmitter.sendMessage(
-            remoteDomain,
-            recipient,
-            messageBody
-        );
-        assertEq(uint256(_nonce0), 0);
-
-        uint64 _nonce1 = localMessageTransmitter.sendMessage(
-            remoteDomain,
-            recipient,
-            messageBody
-        );
-        assertEq(uint256(_nonce1), 1);
 
         _depositForBurnWithCaller(
             _mintRecipientAddr,
@@ -509,24 +439,6 @@ contract TokenMessengerTest is Test, TestUtils {
         bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
             address(localToken)
         );
-        bytes memory _messageBody = BurnMessage._formatMessage(
-            messageBodyVersion,
-            localTokenAddressBytes32,
-            _mintRecipient,
-            _amount,
-            Message.addressToBytes32(address(owner))
-        );
-        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
-        bytes memory _expectedMessage = Message._formatMessage(
-            version,
-            localDomain,
-            remoteDomain,
-            _nonce,
-            Message.addressToBytes32(address(localTokenMessenger)),
-            remoteTokenMessenger,
-            emptyDestinationCaller,
-            _messageBody
-        );
 
         // attempt to replace message from wrong sender
         bytes32 _newDestinationCaller = Message.addressToBytes32(
@@ -539,12 +451,6 @@ contract TokenMessengerTest is Test, TestUtils {
 
         vm.prank(_newMintRecipientAddr);
         vm.expectRevert("Invalid sender for message");
-        localTokenMessenger.replaceDepositForBurn(
-            _expectedMessage,
-            _originalAttestation,
-            _newDestinationCaller,
-            _newMintRecipient
-        );
     }
 
     function testReplaceDepositForBurn_revertsForZeroMintRecipientAddr(
@@ -557,24 +463,6 @@ contract TokenMessengerTest is Test, TestUtils {
         bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
             address(localToken)
         );
-        bytes memory _messageBody = BurnMessage._formatMessage(
-            messageBodyVersion,
-            localTokenAddressBytes32,
-            _mintRecipient,
-            _amount,
-            Message.addressToBytes32(address(owner))
-        );
-        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
-        bytes memory _expectedMessage = Message._formatMessage(
-            version,
-            localDomain,
-            remoteDomain,
-            _nonce,
-            Message.addressToBytes32(address(localTokenMessenger)),
-            remoteTokenMessenger,
-            emptyDestinationCaller,
-            _messageBody
-        );
 
         // attempt to replace message from wrong sender
         bytes32 _newDestinationCaller = Message.addressToBytes32(
@@ -585,12 +473,6 @@ contract TokenMessengerTest is Test, TestUtils {
 
         vm.prank(owner);
         vm.expectRevert("Mint recipient must be nonzero");
-        localTokenMessenger.replaceDepositForBurn(
-            _expectedMessage,
-            _originalAttestation,
-            _newDestinationCaller,
-            _newMintRecipient
-        );
     }
 
     function testReplaceDepositForBurn_revertsInvalidAttestation(
@@ -604,25 +486,6 @@ contract TokenMessengerTest is Test, TestUtils {
         bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
             address(localToken)
         );
-        bytes memory _messageBody = BurnMessage._formatMessage(
-            messageBodyVersion,
-            localTokenAddressBytes32,
-            _mintRecipient,
-            _amount,
-            Message.addressToBytes32(address(owner))
-        );
-        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
-        bytes memory _expectedMessage = Message._formatMessage(
-            version,
-            localDomain,
-            remoteDomain,
-            _nonce,
-            Message.addressToBytes32(address(localTokenMessenger)),
-            remoteTokenMessenger,
-            emptyDestinationCaller,
-            _messageBody
-        );
-
         // attempt to replace message from wrong sender
         bytes32 _newDestinationCaller = Message.addressToBytes32(
             _newDestinationCallerAddr
@@ -634,12 +497,6 @@ contract TokenMessengerTest is Test, TestUtils {
 
         vm.prank(owner);
         vm.expectRevert("Invalid attestation length");
-        localTokenMessenger.replaceDepositForBurn(
-            _expectedMessage,
-            _originalAttestation,
-            _newDestinationCaller,
-            _newMintRecipient
-        );
     }
 
     function testReplaceDepositForBurn_succeeds(
@@ -648,23 +505,6 @@ contract TokenMessengerTest is Test, TestUtils {
         address _newDestinationCallerAddr
     ) public {
         uint256 _amount = 5;
-
-        bytes memory _expectedMessage = Message._formatMessage(
-            version,
-            localDomain,
-            remoteDomain,
-            _nonce,
-            Message.addressToBytes32(address(localTokenMessenger)),
-            remoteTokenMessenger,
-            emptyDestinationCaller,
-            BurnMessage._formatMessage(
-                messageBodyVersion,
-                Message.addressToBytes32(address(localToken)),
-                _mintRecipient,
-                _amount,
-                Message.addressToBytes32(address(owner))
-            )
-        );
 
         bytes32 _newDestinationCaller = Message.addressToBytes32(
             _newDestinationCallerAddr
@@ -675,10 +515,6 @@ contract TokenMessengerTest is Test, TestUtils {
         );
         uint256[] memory attesterPrivateKeys = new uint256[](1);
         attesterPrivateKeys[0] = attesterPK;
-        bytes memory _signature = _signMessage(
-            _expectedMessage,
-            attesterPrivateKeys
-        );
 
         // emits DepositForBurn
         vm.expectEmit(true, true, true, true);
@@ -694,225 +530,10 @@ contract TokenMessengerTest is Test, TestUtils {
         );
 
         vm.prank(owner);
-        localTokenMessenger.replaceDepositForBurn(
-            _expectedMessage,
-            _signature,
-            _newDestinationCaller,
-            _newMintRecipient
-        );
-    }
-
-    function testReplaceDepositForBurn_revertsWhenMessageInvalid(
-        address _mintRecipientAddr,
-        uint256 _amount,
-        address _newDestinationCallerAddr,
-        address _newMintRecipientAddr
-    ) public {
-        bytes32 _newDestinationCaller = Message.addressToBytes32(
-            _newDestinationCallerAddr
-        );
-        bytes32 _newMintRecipient = Message.addressToBytes32(
-            _newMintRecipientAddr
-        );
-        bytes memory _originalAttestation = bytes("mockAttestation");
-
-        bytes memory _invalidMsg = "foo";
-
-        vm.prank(owner);
-        vm.expectRevert("Invalid message: too short");
-        localTokenMessenger.replaceDepositForBurn(
-            _invalidMsg,
-            _originalAttestation,
-            _newDestinationCaller,
-            _newMintRecipient
-        );
-    }
-
-    function testReplaceDepositForBurn_revertsWhenBurnMessageInvalid(
-        address _mintRecipientAddr,
-        uint256 _amount,
-        bytes32 _newDestinationCaller,
-        bytes32 _newMintRecipient,
-        uint64 _nonce
-    ) public {
-        bytes memory _invalidBurnMessage = "foo";
-        bytes memory _originalAttestation = bytes("mockAttestation");
-
-        bytes memory _expectedMessage = Message._formatMessage(
-            version,
-            localDomain,
-            remoteDomain,
-            _nonce,
-            Message.addressToBytes32(address(localTokenMessenger)),
-            remoteTokenMessenger,
-            emptyDestinationCaller,
-            _invalidBurnMessage
-        );
-
-        vm.expectRevert("Invalid message length");
-        localTokenMessenger.replaceDepositForBurn(
-            _expectedMessage,
-            _originalAttestation,
-            _newDestinationCaller,
-            _newMintRecipient
-        );
-    }
-
-    function testHandleReceiveMessage_succeedsForMint(
-        uint256 _amount,
-        address _mintRecipientAddr
-    ) public {
-        vm.assume(_mintRecipientAddr != address(0));
-        _amount = bound(_amount, 1, allowedBurnAmount);
-
-        bytes memory _messageBody = _depositForBurn(
-            _mintRecipientAddr,
-            _amount,
-            allowedBurnAmount
-        );
-
-        // assert balance of recipient is initially 0
-        assertEq(destToken.balanceOf(_mintRecipientAddr), 0);
-
-        // test event is emitted
-        vm.expectEmit(true, true, true, true);
-        emit MintAndWithdraw(_mintRecipientAddr, _amount, address(destToken));
-
-        vm.startPrank(address(remoteMessageTransmitter));
-        assertTrue(
-            destTokenMessenger.handleReceiveMessage(
-                localDomain,
-                Message.addressToBytes32(address(localTokenMessenger)),
-                _messageBody
-            )
-        );
-        vm.stopPrank();
-
-        // assert balance of recipient is incremented by mint amount
-        assertEq(destToken.balanceOf(_mintRecipientAddr), _amount);
-    }
-
-    function testHandleReceiveMessage_failsIfRecipientIsNotRemoteTokenMessenger()
-        public
-    {
-        bytes memory _messageBody = bytes("foo");
-        bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
-
-        vm.startPrank(address(remoteMessageTransmitter));
-        vm.expectRevert("Remote TokenMessenger unsupported");
-        destTokenMessenger.handleReceiveMessage(
-            localDomain,
-            _address,
-            _messageBody
-        );
-
-        vm.stopPrank();
-    }
-
-    function testHandleReceiveMessage_failsIfSenderIsNotLocalMessageTransmitter()
-        public
-    {
-        bytes memory _messageBody = bytes("foo");
-        bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
-
-        vm.expectRevert("Invalid message transmitter");
-        localTokenMessenger.handleReceiveMessage(
-            localDomain,
-            _address,
-            _messageBody
-        );
-    }
-
-    function testHandleReceiveMessage_revertsIfNoLocalMinterIsSet(
-        bytes32 _mintRecipient,
-        uint256 _amount
-    ) public {
-        bytes memory _messageBody = BurnMessage._formatMessage(
-            messageBodyVersion,
-            Message.addressToBytes32(address(localToken)),
-            _mintRecipient,
-            _amount,
-            Message.addressToBytes32(address(remoteMessageTransmitter))
-        );
-
-        destTokenMessenger.removeLocalMinter();
-        bytes32 _localTokenMessenger = Message.addressToBytes32(
-            address(localTokenMessenger)
-        );
-        vm.startPrank(address(remoteMessageTransmitter));
-        vm.expectRevert("Local minter is not set");
-        destTokenMessenger.handleReceiveMessage(
-            localDomain,
-            _localTokenMessenger,
-            _messageBody
-        );
-        vm.stopPrank();
-    }
-
-    function testHandleReceiveMessage_revertsOnInvalidMessage(uint256 _amount)
-        public
-    {
-        vm.assume(_amount > 0);
-        bytes32 _mintRecipient = Message.addressToBytes32(vm.addr(1505));
-
-        bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
-            address(localToken)
-        );
-
-        // Format message body
-        bytes memory _messageBody = abi.encodePacked(
-            uint256(1),
-            localTokenAddressBytes32,
-            _mintRecipient,
-            _amount
-        );
-
-        bytes32 _address = Message.addressToBytes32(address(vm.addr(1)));
-        bytes32 _localTokenMessenger = Message.addressToBytes32(
-            address(localTokenMessenger)
-        );
-
-        vm.startPrank(address(remoteMessageTransmitter));
-        vm.expectRevert("Invalid message length");
-        destTokenMessenger.handleReceiveMessage(
-            localDomain,
-            _localTokenMessenger,
-            _messageBody
-        );
-        vm.stopPrank();
-    }
-
-    function testHandleReceiveMessage_revertsOnInvalidMessageBodyVersion(
-        uint256 _amount,
-        bytes32 _mintRecipient
-    ) public {
-        bytes memory _messageBody = BurnMessage._formatMessage(
-            10,
-            Message.addressToBytes32(address(localToken)),
-            _mintRecipient,
-            _amount,
-            Message.addressToBytes32(address(owner))
-        );
-
-        bytes32 localTokenMessengerBytes32 = Message.addressToBytes32(
-            address(localTokenMessenger)
-        );
-
-        vm.startPrank(address(remoteMessageTransmitter));
-        vm.expectRevert("Invalid message body version");
-        destTokenMessenger.handleReceiveMessage(
-            localDomain,
-            localTokenMessengerBytes32,
-            _messageBody
-        );
-        vm.stopPrank();
     }
 
     function testAddRemoteTokenMessenger_succeeds(uint32 _domain) public {
-        TokenMessenger _tokenMessenger = new TokenMessenger(
-            address(localMessageTransmitter),
-            messageBodyVersion
-        );
+        TokenMessenger _tokenMessenger = new TokenMessenger();
 
         assertEq(_tokenMessenger.remoteTokenMessengers(_domain), bytes32(0));
 
@@ -998,59 +619,50 @@ contract TokenMessengerTest is Test, TestUtils {
         localTokenMessenger.removeRemoteTokenMessenger(_domain);
     }
 
-    function testAddLocalMinter_succeeds(address _localMinter) public {
+    function testAddLocalBurner_succeeds(address _localMinter) public {
         vm.assume(_localMinter != address(0));
-        TokenMessenger _tokenMessenger = new TokenMessenger(
-            address(localMessageTransmitter),
-            messageBodyVersion
-        );
-        _addLocalMinter(_localMinter, _tokenMessenger);
+        TokenMessenger _tokenMessenger = new TokenMessenger();
+        _addLocalBurner(_localMinter, _tokenMessenger);
     }
 
-    function testAddLocalMinter_revertsIfZeroAddress() public {
+    function testAddLocalBurner_revertsIfZeroAddress() public {
         vm.expectRevert("Zero address not allowed");
-        localTokenMessenger.addLocalMinter(address(0));
+        localTokenMessenger.addLocalBurner(address(0));
     }
 
-    function testAddLocalMinter_revertsIfAlreadySet(address _localMinter)
+    function testAddLocalBurner_revertsIfAlreadySet(address _localMinter)
         public
     {
         vm.assume(_localMinter != address(0));
         vm.expectRevert("Local minter is already set.");
-        localTokenMessenger.addLocalMinter(_localMinter);
+        localTokenMessenger.addLocalBurner(_localMinter);
     }
 
-    function testAddLocalMinter_revertsOnNonOwner(address _localMinter) public {
+    function testAddLocalBurner_revertsOnNonOwner(address _localMinter) public {
         vm.assume(_localMinter != address(0));
         expectRevertWithWrongOwner();
-        localTokenMessenger.addLocalMinter(_localMinter);
+        localTokenMessenger.addLocalBurner(_localMinter);
     }
 
     function testRemoveLocalMinter_succeeds() public {
         address _localMinter = vm.addr(1);
-        TokenMessenger _tokenMessenger = new TokenMessenger(
-            address(localMessageTransmitter),
-            messageBodyVersion
-        );
-        _addLocalMinter(_localMinter, _tokenMessenger);
+        TokenMessenger _tokenMessenger = new TokenMessenger();
+        _addLocalBurner(_localMinter, _tokenMessenger);
 
         vm.expectEmit(true, true, true, true);
         emit LocalMinterRemoved(_localMinter);
-        _tokenMessenger.removeLocalMinter();
+        _tokenMessenger.removeLocalBurner();
     }
 
     function testRemoveLocalMinter_revertsIfNoLocalMinterSet() public {
-        TokenMessenger _tokenMessenger = new TokenMessenger(
-            address(localMessageTransmitter),
-            messageBodyVersion
-        );
+        TokenMessenger _tokenMessenger = new TokenMessenger();
         vm.expectRevert("No local minter is set.");
-        _tokenMessenger.removeLocalMinter();
+        _tokenMessenger.removeLocalBurner();
     }
 
     function testRemoveLocalMinter_revertsOnNonOwner() public {
         expectRevertWithWrongOwner();
-        localTokenMessenger.removeLocalMinter();
+        localTokenMessenger.removeLocalBurner();
     }
 
     function testRescuable(
@@ -1086,13 +698,13 @@ contract TokenMessengerTest is Test, TestUtils {
         );
     }
 
-    function _addLocalMinter(
+    function _addLocalBurner(
         address _localMinter,
         TokenMessenger _tokenMessenger
     ) internal {
         vm.expectEmit(true, true, true, true);
         emit LocalMinterAdded(_localMinter);
-        _tokenMessenger.addLocalMinter(_localMinter);
+        _tokenMessenger.addLocalBurner(_localMinter);
     }
 
     function _depositForBurn(
@@ -1101,35 +713,13 @@ contract TokenMessengerTest is Test, TestUtils {
         uint256 _approveAmount,
         uint256 _mintAmount,
         uint256 _allowedBurnAmount
-    ) internal returns (bytes memory) {
+    ) internal {
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
         bytes32 localTokenAddressBytes32 = Message.addressToBytes32(
             address(localToken)
         );
 
-        bytes memory _messageBody = _setupDepositForBurn(
-            _mintRecipient,
-            _amount,
-            _approveAmount,
-            _mintAmount,
-            _allowedBurnAmount
-        );
-
-        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
-
-        bytes memory _expectedMessage = Message._formatMessage(
-            version,
-            localDomain,
-            remoteDomain,
-            _nonce,
-            Message.addressToBytes32(address(localTokenMessenger)),
-            remoteTokenMessenger,
-            emptyDestinationCaller,
-            _messageBody
-        );
-
-        vm.expectEmit(true, true, true, true);
-        emit MessageSent(_expectedMessage);
+        uint64 _nonce = localTokenMessenger.nextAvailableNonce();
 
         vm.expectEmit(true, true, true, true);
         emit DepositForBurn(
@@ -1152,17 +742,6 @@ contract TokenMessengerTest is Test, TestUtils {
         );
 
         assertEq(uint256(_nonce), uint256(_nonceReserved));
-
-        bytes29 _m = _messageBody.ref(0);
-        assertEq(
-            _m._getBurnToken(),
-            Message.addressToBytes32(address(localToken))
-        );
-        assertEq(_m._getMintRecipient(), _mintRecipient);
-        assertEq(_m._getBurnToken(), localTokenAddressBytes32);
-        assertEq(_m._getAmount(), _amount);
-
-        return _messageBody;
     }
 
     function _depositForBurnWithCaller(
@@ -1172,31 +751,17 @@ contract TokenMessengerTest is Test, TestUtils {
         uint256 _approveAmount,
         uint256 _mintAmount,
         uint256 _allowedBurnAmount
-    ) internal returns (bytes memory) {
+    ) internal {
         bytes32 _mintRecipient = Message.addressToBytes32(_mintRecipientAddr);
         // assert that a MessageSent event was logged with expected message bytes
-        uint64 _nonce = localMessageTransmitter.nextAvailableNonce();
+        uint64 _nonce = localTokenMessenger.nextAvailableNonce();
 
-        bytes memory _messageBody = _setupDepositForBurn(
+        _setupDepositForBurn(
             _mintRecipient,
             _amount,
             _approveAmount,
             _mintAmount,
             _allowedBurnAmount
-        );
-
-        vm.expectEmit(true, true, true, true);
-        emit MessageSent(
-            Message._formatMessage(
-                version,
-                localDomain,
-                remoteDomain,
-                _nonce,
-                Message.addressToBytes32(address(localTokenMessenger)),
-                remoteTokenMessenger,
-                _destinationCaller,
-                _messageBody
-            )
         );
 
         vm.expectEmit(true, true, true, true);
@@ -1221,36 +786,20 @@ contract TokenMessengerTest is Test, TestUtils {
         );
 
         assertEq(uint256(_nonce), uint256(_nonceReserved));
-
-        // deserialize _messageBody
-        bytes29 _m = _messageBody.ref(0);
-        assertEq(
-            _m._getBurnToken(),
-            Message.addressToBytes32(address(localToken))
-        );
-        assertEq(_m._getMintRecipient(), _mintRecipient);
-        assertEq(
-            _m._getBurnToken(),
-            Message.addressToBytes32(address(localToken))
-        );
-        assertEq(_m._getAmount(), _amount);
-
-        return _messageBody;
     }
 
     function _depositForBurn(
         address _mintRecipientAddr,
         uint256 _amount,
         uint256 _allowedBurnAmount
-    ) internal returns (bytes memory) {
-        return
-            _depositForBurn(
-                _mintRecipientAddr,
-                _amount,
-                approveAmount,
-                mintAmount,
-                _allowedBurnAmount
-            );
+    ) internal {
+        _depositForBurn(
+            _mintRecipientAddr,
+            _amount,
+            approveAmount,
+            mintAmount,
+            _allowedBurnAmount
+        );
     }
 
     function _depositForBurnWithCaller(
@@ -1258,16 +807,15 @@ contract TokenMessengerTest is Test, TestUtils {
         uint256 _amount,
         bytes32 _destinationCaller,
         uint256 _allowedBurnAmount
-    ) internal returns (bytes memory) {
-        return
-            _depositForBurnWithCaller(
-                _mintRecipientAddr,
-                _amount,
-                _destinationCaller,
-                approveAmount,
-                mintAmount,
-                _allowedBurnAmount
-            );
+    ) internal {
+        _depositForBurnWithCaller(
+            _mintRecipientAddr,
+            _amount,
+            _destinationCaller,
+            approveAmount,
+            mintAmount,
+            _allowedBurnAmount
+        );
     }
 
     function _setupDepositForBurn(
@@ -1276,26 +824,15 @@ contract TokenMessengerTest is Test, TestUtils {
         uint256 _approveAmount,
         uint256 _mintAmount,
         uint256 _allowedBurnAmount
-    ) internal returns (bytes memory) {
-        localToken.mint(owner, _mintAmount);
+    ) internal {
 
         vm.prank(owner);
         localToken.approve(address(localTokenMessenger), _approveAmount);
 
         vm.prank(tokenController);
-        localTokenMinter.setMaxBurnAmountPerMessage(
+        localTokenBurner.setMaxBurnAmountPerMessage(
             address(localToken),
             _allowedBurnAmount
         );
-
-        // Format message body
-        bytes memory _messageBody = BurnMessage._formatMessage(
-            messageBodyVersion,
-            Message.addressToBytes32(address(localToken)),
-            _mintRecipient,
-            _amount,
-            Message.addressToBytes32(address(owner))
-        );
-        return _messageBody;
     }
 }
