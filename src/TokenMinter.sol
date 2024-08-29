@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.19;
+pragma solidity 0.8.20;
 
 import "./interfaces/ITokenMinter.sol";
 import "./interfaces/IMintBurnToken.sol";
