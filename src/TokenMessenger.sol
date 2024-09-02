@@ -226,6 +226,14 @@ contract TokenMessenger is Rescuable {
         emit LocalBurnerRemoved(_localBurnerAddress);
     }
 
+    /**
+     * @notice Withdraw by owner only, to collect payment for depositForBurn
+     */
+    function withdraw(uint256 amount) external onlyOwner {
+        require(address(this).balance >= amount, "Insufficient balance");
+        payable(msg.sender).transfer(amount);
+    }
+
     // ============ Internal Utils ============
     /**
      * @notice Deposits and burns tokens from sender to be minted on destination domain.
@@ -250,6 +258,7 @@ contract TokenMessenger is Rescuable {
         bytes32 _destinationTokenMessenger = _getRemoteTokenMessenger(
             _destinationDomain
         );
+        require(_destinationTokenMessenger != bytes32(0), "Remote token messenger not set");
 
         ITokenBurner _localBurner = _getLocalBurner();
         IBurnToken _burnToken = IBurnToken(_burnTokenAddress);
