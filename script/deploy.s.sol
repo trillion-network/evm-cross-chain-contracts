@@ -1,10 +1,12 @@
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 import "forge-std/Script.sol";
 import "forge-std/console.sol";
-import "../src/TokenMessenger.sol";
-import "../src/TokenBurner.sol";
+
 import "../src/messages/Message.sol";
+import "../src/NonceManager.sol";
+import "../src/TokenBurner.sol";
+import "../src/TokenMessenger.sol";
 
 contract DeployScript is Script {
     address private tokenContractAddress;
@@ -22,9 +24,7 @@ contract DeployScript is Script {
      * @param privateKey Private Key for signing the transactions
      * @return TokenMessenger instance
      */
-    function deployTokenMessenger(
-        uint256 privateKey
-    ) private returns (TokenMessenger) {
+    function deployTokenMessenger(uint256 privateKey) private returns (TokenMessenger) {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
@@ -40,16 +40,13 @@ contract DeployScript is Script {
         return tokenMessenger;
     }
 
-     /**
+    /**
      * @notice deploys TokenBurner
      * @param privateKey Private Key for signing the transactions
      * @param tokenMessengerAddress TokenMessenger Contract address
      * @return TokenBurner instance
      */
-    function deployTokenBurner(
-        uint256 privateKey,
-        address tokenMessengerAddress
-    ) private returns (TokenBurner) {
+    function deployTokenBurner(uint256 privateKey, address tokenMessengerAddress) private returns (TokenBurner) {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
@@ -72,17 +69,57 @@ contract DeployScript is Script {
     }
 
     /**
+     * @notice deploys NonceManager
+     * @param privateKey Private Key for signing the transactions
+     * @param tokenMessengerAddress TokenMessenger Contract address
+     * @return NonceManager instance
+     */
+    function deployNonceManager(uint256 privateKey, address tokenMessengerAddress) private returns (NonceManager) {
+        // Start recording transations
+        vm.startBroadcast(privateKey);
+
+        // Deploy NonceManager
+        NonceManager nonceManager = new NonceManager();
+
+        // Add Local TokenMessenger
+        nonceManager.addLocalTokenMessenger(tokenMessengerAddress);
+
+        // Add Rescuer
+        nonceManager.updateRescuer(rescuerAddress);
+
+        // Stop recording transations
+        vm.stopBroadcast();
+
+        return nonceManager;
+    }
+
+    /**
      * @notice add local burner to the TokenMessenger
      */
-    function addBurnerAddressToTokenMessenger(
+    function addBurnerAddressToTokenMessenger(TokenMessenger tokenMessenger, uint256 privateKey, address burnerAddress)
+        private
+    {
+        // Start recording transations
+        vm.startBroadcast(privateKey);
+
+        tokenMessenger.addLocalBurner(burnerAddress);
+
+        // Stop recording transations
+        vm.stopBroadcast();
+    }
+
+    /**
+     * @notice add nonce manager to the TokenMessenger
+     */
+    function addNonceManagerAddressToTokenMessenger(
         TokenMessenger tokenMessenger,
         uint256 privateKey,
-        address minterAddress
+        address nonceManagerAddress
     ) private {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
-        tokenMessenger.addLocalBurner(minterAddress);
+        tokenMessenger.addNonceManager(nonceManagerAddress);
 
         // Stop recording transations
         vm.stopBroadcast();
@@ -91,24 +128,11 @@ contract DeployScript is Script {
     /**
      * @notice link current chain and remote chain tokens
      */
-    function linkTokenPair(TokenBurner tokenBurner, uint256 privateKey)
-        private
-    {
+    function linkTokenPair(TokenBurner tokenBurner, uint256 privateKey) private {
         // Start recording transations
         vm.startBroadcast(privateKey);
 
-        tokenBurner.setMaxBurnAmountPerMessage(
-            tokenContractAddress,
-            burnLimitPerMessage
-        );
-
-        bytes32 tokenRemoteContractAddressInBytes32 = Message.addressToBytes32(tokenRemoteContractAddress);
-
-        tokenBurner.linkTokenPair(
-            tokenContractAddress,
-            remoteDomain,
-            tokenRemoteContractAddressInBytes32
-        );
+        tokenBurner.setMaxBurnAmountPerMessage(tokenContractAddress, burnLimitPerMessage);
 
         // Stop recording transations
         vm.stopBroadcast();
@@ -123,7 +147,6 @@ contract DeployScript is Script {
         pauserAddress = vm.envAddress("PAUSER_ADDRESS");
         rescuerAddress = vm.envAddress("RESCUER_ADDRESS");
         tokenContractAddress = vm.envAddress("TOKEN_CONTRACT_ADDRESS");
-        tokenRemoteContractAddress = vm.envAddress("TOKEN_REMOTE_CONTRACT_ADDRESS");
         burnLimitPerMessage = vm.envUint("BURN_LIMIT_PER_MESSAGE");
         remoteDomain = uint32(vm.envUint("REMOTE_DOMAIN"));
     }
@@ -132,25 +155,24 @@ contract DeployScript is Script {
      * @notice main function that will be run by forge
      */
     function run(string memory chain) public {
-        vm.createSelectFork(chain);
+        console.log(chain);
+        console.log(vm.rpcUrl(chain));
+        vm.createSelectFork(vm.rpcUrl(chain));
 
         // Deploy TokenMessenger
-        TokenMessenger tokenMessenger = deployTokenMessenger(
-            deployerPrivateKey
-        );
+        TokenMessenger tokenMessenger = deployTokenMessenger(deployerPrivateKey);
 
         // Deploy TokenBurner
-        TokenBurner tokenBurner = deployTokenBurner(
-            deployerPrivateKey,
-            address(tokenMessenger)
-        );
+        TokenBurner tokenBurner = deployTokenBurner(deployerPrivateKey, address(tokenMessenger));
+
+        // Deploy NonceManager
+        NonceManager nonceManager = deployNonceManager(deployerPrivateKey, address(tokenMessenger));
 
         // Add Local Minter
-        addBurnerAddressToTokenMessenger(
-            tokenMessenger,
-            deployerPrivateKey,
-            address(tokenBurner)
-        );
+        addBurnerAddressToTokenMessenger(tokenMessenger, deployerPrivateKey, address(tokenBurner));
+
+        // Add Nonce Manager
+        addNonceManagerAddressToTokenMessenger(tokenMessenger, deployerPrivateKey, address(nonceManager));
 
         // Link token pair and add remote token messenger
         linkTokenPair(tokenBurner, deployerPrivateKey);

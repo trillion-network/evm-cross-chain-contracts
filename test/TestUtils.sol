@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 import "../src/TokenBurner.sol";
 import "../src/messages/Message.sol";
@@ -35,15 +35,9 @@ contract TestUtils is Test {
      */
     event LocalTokenMessengerRemoved(address localTokenMessenger);
 
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
-    event OwnershipTransferStarted(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
     event Pause();
 
@@ -82,10 +76,9 @@ contract TestUtils is Test {
     address arbitraryAddress = vm.addr(1903);
 
     // 8 KiB
-    uint32 maxMessageBodySize = 8 * 2**10;
+    uint32 maxMessageBodySize = 8 * 2 ** 10;
     // zero signature
-    bytes zeroSignature =
-        "00000000000000000000000000000000000000000000000000000000000000000";
+    bytes zeroSignature = "00000000000000000000000000000000000000000000000000000000000000000";
 
     function linkTokenPair(
         TokenBurner tokenBurner,
@@ -94,24 +87,14 @@ contract TestUtils is Test {
         bytes32 _remoteTokenBytes32
     ) public {
         vm.prank(tokenController);
-        tokenBurner.linkTokenPair(
-            address(_localToken),
-            _remoteDomain,
-            _remoteTokenBytes32
-        );
+        tokenBurner.linkTokenPair(address(_localToken), _remoteDomain, _remoteTokenBytes32);
 
-        address _actualLocalToken = tokenBurner.getLocalToken(
-            _remoteDomain,
-            _remoteTokenBytes32
-        );
+        address _actualLocalToken = tokenBurner.getLocalToken(_remoteDomain, _remoteTokenBytes32);
 
         assertEq(_actualLocalToken, address(_localToken));
     }
 
-    function addLocalTokenMessenger(
-        TokenBurner _tokenBurner,
-        address _localTokenMessenger
-    ) public {
+    function addLocalTokenMessenger(TokenBurner _tokenBurner, address _localTokenMessenger) public {
         assertEq(_tokenBurner.localTokenMessenger(), address(0));
 
         vm.expectEmit(true, true, true, true);
@@ -158,10 +141,7 @@ contract TestUtils is Test {
         // _rescueRecipient accidentally sends _mockBurnToken to the _rescuableContractAddress
         vm.prank(_rescueRecipient);
         _mockBurnToken.transfer(_rescuableContractAddress, _amount);
-        assertEq(
-            _mockBurnToken.balanceOf(_rescuableContractAddress),
-            _amount
-        );
+        assertEq(_mockBurnToken.balanceOf(_rescuableContractAddress), _amount);
 
         // (Updating rescuer to zero-address is not permitted)
         if (_rescuer != address(0)) {
@@ -170,11 +150,7 @@ contract TestUtils is Test {
 
         // Rescue erc20 to _rescueRecipient
         vm.prank(_rescuer);
-        _rescuableContract.rescueERC20(
-            _mockBurnToken,
-            _rescueRecipient,
-            _amount
-        );
+        _rescuableContract.rescueERC20(_mockBurnToken, _rescueRecipient, _amount);
 
         // Assert funds are rescued
         assertEq(_mockBurnToken.balanceOf(_rescueRecipient), _amount);
@@ -213,10 +189,7 @@ contract TestUtils is Test {
         assertEq(_pausableContract.pauser(), _newPauser);
     }
 
-    function transferOwnershipAndAcceptOwnership(
-        address _ownableContractAddress,
-        address _newOwner
-    ) public {
+    function transferOwnershipAndAcceptOwnership(address _ownableContractAddress, address _newOwner) public {
         Ownable2Step _ownableContract = Ownable2Step(_ownableContractAddress);
         address initialOwner = _ownableContract.owner();
         // assert that the owner is still unchanged
@@ -252,10 +225,8 @@ contract TestUtils is Test {
         address initialOwner = _ownableContract.owner();
         vm.assume(_newOwner != address(0));
         vm.assume(
-            _secondNewOwner != _newOwner &&
-                _secondNewOwner != address(0) &&
-                _secondNewOwner != _ownableContractAddress &&
-                _secondNewOwner != initialOwner
+            _secondNewOwner != _newOwner && _secondNewOwner != address(0) && _secondNewOwner != _ownableContractAddress
+                && _secondNewOwner != initialOwner
         );
         assertEq(_ownableContract.owner(), initialOwner);
 
@@ -282,19 +253,13 @@ contract TestUtils is Test {
         assertEq(_ownableContract.owner(), _secondNewOwner);
     }
 
-    function _signMessageWithAttesterPK(bytes memory _message)
-        internal
-        returns (bytes memory)
-    {
+    function _signMessageWithAttesterPK(bytes memory _message) internal returns (bytes memory) {
         uint256[] memory attesterPrivateKeys = new uint256[](1);
         attesterPrivateKeys[0] = attesterPK;
         return _signMessage(_message, attesterPrivateKeys);
     }
 
-    function _signMessage(bytes memory _message, uint256[] memory _privKeys)
-        internal
-        returns (bytes memory)
-    {
+    function _signMessage(bytes memory _message, uint256[] memory _privKeys) internal returns (bytes memory) {
         bytes memory _signaturesConcatenated = "";
 
         for (uint256 i = 0; i < _privKeys.length; i++) {
@@ -303,10 +268,7 @@ contract TestUtils is Test {
             (uint8 _v, bytes32 _r, bytes32 _s) = vm.sign(_privKey, _digest);
             bytes memory _signature = abi.encodePacked(_r, _s, _v);
 
-            _signaturesConcatenated = abi.encodePacked(
-                _signaturesConcatenated,
-                _signature
-            );
+            _signaturesConcatenated = abi.encodePacked(_signaturesConcatenated, _signature);
         }
 
         return _signaturesConcatenated;

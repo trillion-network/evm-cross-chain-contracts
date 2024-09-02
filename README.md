@@ -1,17 +1,6 @@
-## Foundry
+## Trillion EVM cross chain contract
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
-
-Foundry consists of:
-
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
-
-## Documentation
-
-https://book.getfoundry.sh/
+Foundry-based repo for Trillion smart contracts.
 
 ## Usage
 
@@ -47,9 +36,28 @@ $ anvil
 
 ### Deploy
 
+Example of how to deploy a simple contract using a Foundry script.
+
 ```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
 ```
+
+To deploy `TokenMessenger` `TokenBurner` `NonceMAnager` with a private key, enter the required env vars in `.env`, then run:
+
+```shell
+npm run deploy:sepolia
+npm run deploy:sepolia:broadcast
+npm run deploy:optimismSepolia
+npm run deploy:optimismSepolia:broadcast
+```
+broadcast is to execute the transaction
+
+To deploy with hardware wallet:
+
+```shell
+forge script DeployScript --verify --ffi -vvvv --broadcast --ledger --sender $HARDWARE_WALLET_ADDRESS --sig \"run(string)\" sepolia
+```
+
 
 ### Cast
 

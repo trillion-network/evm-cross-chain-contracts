@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 import "../../lib/forge-std/src/Test.sol";
 import "../../src/roles/Ownable2Step.sol";
@@ -25,15 +25,9 @@ import "../../src/TokenBurner.sol";
  * MessageTransmitter.t.sol, TokenMessenger.t.sol, and TokenBurner.t.sol.)
  */
 contract Ownable2StepTest is Test {
-    event OwnershipTransferStarted(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     address initialOwner = vm.addr(1505);
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 import "../src/TokenBurner.sol";
 import "../src/messages/Message.sol";
@@ -29,11 +29,7 @@ contract TokenBurnerTest is Test, TestUtils {
      * @param remoteDomain remote domain
      * @param remoteToken token on `remoteDomain` corresponding to `localToken`
      */
-    event TokenPairLinked(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
-    );
+    event TokenPairLinked(address localToken, uint32 remoteDomain, bytes32 remoteToken);
 
     /**
      * @notice Emitted when a token pair is unlinked
@@ -41,21 +37,14 @@ contract TokenBurnerTest is Test, TestUtils {
      * @param remoteDomain remote domain
      * @param remoteToken token on `remoteDomain` unlinked from `localToken`
      */
-    event TokenPairUnlinked(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
-    );
+    event TokenPairUnlinked(address localToken, uint32 remoteDomain, bytes32 remoteToken);
 
     /**
      * @notice Emitted when a burn limit per message is set for a particular token
      * @param token local token address
      * @param burnLimitPerMessage burn limit per message for `token`
      */
-    event SetBurnLimitPerMessage(
-        address indexed token,
-        uint256 burnLimitPerMessage
-    );
+    event SetBurnLimitPerMessage(address indexed token, uint256 burnLimitPerMessage);
 
     /**
      * @notice Emitted when token controller is set
@@ -86,19 +75,12 @@ contract TokenBurnerTest is Test, TestUtils {
         tokenMinter.updatePauser(pauser);
     }
 
-    function testBurn_succeeds(
-        uint256 _amount,
-        address _localToken,
-        uint256 _allowedBurnAmount
-    ) public {
+    function testBurn_succeeds(uint256 _amount, address _localToken, uint256 _allowedBurnAmount) public {
         vm.assume(_amount > 0);
         vm.assume(_allowedBurnAmount > 0 && _allowedBurnAmount >= _amount);
 
         vm.prank(tokenController);
-        tokenMinter.setMaxBurnAmountPerMessage(
-            localTokenAddress,
-            _allowedBurnAmount
-        );
+        tokenMinter.setMaxBurnAmountPerMessage(localTokenAddress, _allowedBurnAmount);
 
         _burn(_amount, _localToken);
     }
@@ -110,10 +92,7 @@ contract TokenBurnerTest is Test, TestUtils {
         vm.stopPrank();
     }
 
-    function testBurn_revertsIfCallerIsNotRegisteredTokenMessenger(
-        uint256 _amount,
-        address _remoteToken
-    ) public {
+    function testBurn_revertsIfCallerIsNotRegisteredTokenMessenger(uint256 _amount, address _remoteToken) public {
         vm.prank(nonTokenMessenger);
         vm.expectRevert("Caller not local TokenMessenger");
         tokenMinter.burn(_remoteToken, _amount);
@@ -124,10 +103,7 @@ contract TokenBurnerTest is Test, TestUtils {
         uint256 _burnAmount = 1;
 
         vm.prank(tokenController);
-        tokenMinter.setMaxBurnAmountPerMessage(
-            localTokenAddress,
-            _allowedBurnAmount
-        );
+        tokenMinter.setMaxBurnAmountPerMessage(localTokenAddress, _allowedBurnAmount);
 
         vm.prank(pauser);
         tokenMinter.pause();
@@ -140,18 +116,12 @@ contract TokenBurnerTest is Test, TestUtils {
         _burn(_burnAmount, localTokenAddress);
     }
 
-    function testBurn_revertsWhenAmountExceedsNonZeroBurnLimit(
-        uint256 _allowedBurnAmount,
-        uint256 _amount
-    ) public {
+    function testBurn_revertsWhenAmountExceedsNonZeroBurnLimit(uint256 _allowedBurnAmount, uint256 _amount) public {
         vm.assume(_allowedBurnAmount > 0);
         vm.assume(_amount > _allowedBurnAmount);
 
         vm.prank(tokenController);
-        tokenMinter.setMaxBurnAmountPerMessage(
-            localTokenAddress,
-            _allowedBurnAmount
-        );
+        tokenMinter.setMaxBurnAmountPerMessage(localTokenAddress, _allowedBurnAmount);
 
         vm.expectRevert("Burn amount exceeds per tx limit");
         vm.startPrank(localTokenMessenger);
@@ -175,67 +145,36 @@ contract TokenBurnerTest is Test, TestUtils {
         _linkTokenPair(localTokenAddress);
         vm.expectRevert("Unable to link token pair");
         vm.prank(tokenController);
-        tokenMinter.linkTokenPair(
-            address(localToken),
-            remoteDomain,
-            remoteTokenBytes32
-        );
+        tokenMinter.linkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
     }
 
     function testLinkTokenPair_revertsWhenCalledByNonOwner() public {
         expectRevertWithWrongTokenController();
-        tokenMinter.linkTokenPair(
-            address(localToken),
-            remoteDomain,
-            remoteTokenBytes32
-        );
+        tokenMinter.linkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
     }
 
     function testUnlinkTokenPair_succeeds() public {
         _linkTokenPair(localTokenAddress);
 
-        bytes32 remoteTokensKey = _hashRemoteDomainAndToken(
-            remoteDomain,
-            remoteTokenBytes32
-        );
-        assertEq(
-            tokenMinter.remoteTokensToLocalTokens(remoteTokensKey),
-            localTokenAddress
-        );
+        bytes32 remoteTokensKey = _hashRemoteDomainAndToken(remoteDomain, remoteTokenBytes32);
+        assertEq(tokenMinter.remoteTokensToLocalTokens(remoteTokensKey), localTokenAddress);
 
         vm.prank(tokenController);
-        tokenMinter.unlinkTokenPair(
-            address(localToken),
-            remoteDomain,
-            remoteTokenBytes32
-        );
+        tokenMinter.unlinkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
 
-        address localTokenResultAfterUnlink = tokenMinter.getLocalToken(
-            remoteDomain,
-            remoteTokenBytes32
-        );
+        address localTokenResultAfterUnlink = tokenMinter.getLocalToken(remoteDomain, remoteTokenBytes32);
         assertEq(localTokenResultAfterUnlink, address(0));
     }
 
     function testUnlinkTokenPair_revertsOnAlreadyUnlinkedToken() public {
         vm.prank(tokenController);
         vm.expectRevert("Unable to unlink token pair");
-        tokenMinter.unlinkTokenPair(
-            address(localToken),
-            remoteDomain,
-            remoteTokenBytes32
-        );
+        tokenMinter.unlinkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
     }
 
-    function testUnlinkTokenPair_revertsWhenCalledByNonTokenController()
-        public
-    {
+    function testUnlinkTokenPair_revertsWhenCalledByNonTokenController() public {
         expectRevertWithWrongTokenController();
-        tokenMinter.unlinkTokenPair(
-            address(localToken),
-            remoteDomain,
-            remoteTokenBytes32
-        );
+        tokenMinter.unlinkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
     }
 
     function testGetLocalToken_succeeds() public {
@@ -243,26 +182,17 @@ contract TokenBurnerTest is Test, TestUtils {
     }
 
     function testGetLocalToken_findsNoLocalToken() public {
-        address _result = tokenMinter.getLocalToken(
-            remoteDomain,
-            remoteTokenBytes32
-        );
+        address _result = tokenMinter.getLocalToken(remoteDomain, remoteTokenBytes32);
         assertEq(_result, address(0));
     }
 
-    function testSetMaxBurnAmountPerMessage_succeeds(
-        address _localToken,
-        uint256 _burnLimitPerMessage
-    ) public {
+    function testSetMaxBurnAmountPerMessage_succeeds(address _localToken, uint256 _burnLimitPerMessage) public {
         vm.prank(tokenController);
 
         vm.expectEmit(true, true, true, true);
         emit SetBurnLimitPerMessage(_localToken, _burnLimitPerMessage);
 
-        tokenMinter.setMaxBurnAmountPerMessage(
-            _localToken,
-            _burnLimitPerMessage
-        );
+        tokenMinter.setMaxBurnAmountPerMessage(_localToken, _burnLimitPerMessage);
     }
 
     function testSetMaxBurnAmountPerMessage_revertsWhenCalledByNonController(
@@ -270,15 +200,10 @@ contract TokenBurnerTest is Test, TestUtils {
         uint256 _burnLimitPerMessage
     ) public {
         expectRevertWithWrongTokenController();
-        tokenMinter.setMaxBurnAmountPerMessage(
-            _localToken,
-            _burnLimitPerMessage
-        );
+        tokenMinter.setMaxBurnAmountPerMessage(_localToken, _burnLimitPerMessage);
     }
 
-    function testSetTokenController_succeeds(address newTokenController)
-        public
-    {
+    function testSetTokenController_succeeds(address newTokenController) public {
         vm.assume(newTokenController != address(0));
         assertEq(tokenMinter.tokenController(), tokenController);
 
@@ -288,9 +213,7 @@ contract TokenBurnerTest is Test, TestUtils {
         assertEq(tokenMinter.tokenController(), newTokenController);
     }
 
-    function testSetTokenController_revertsWhenCalledByNonOwner(
-        address _newTokenController
-    ) public {
+    function testSetTokenController_revertsWhenCalledByNonOwner(address _newTokenController) public {
         expectRevertWithWrongOwner();
         tokenMinter.setTokenController(_newTokenController);
     }
@@ -305,24 +228,18 @@ contract TokenBurnerTest is Test, TestUtils {
         addLocalTokenMessenger(_tokenMinter, localTokenMessenger);
     }
 
-    function testAddLocalTokenMessenger_revertsWhenLocalTokenBurnerAlreadySet()
-        public
-    {
+    function testAddLocalTokenMessenger_revertsWhenLocalTokenBurnerAlreadySet() public {
         address _tokenMessenger = vm.addr(1700);
         vm.expectRevert("Local TokenMessenger already set");
         tokenMinter.addLocalTokenMessenger(_tokenMessenger);
     }
 
-    function testAddLocalTokenMessenger_revertsWhenNewTokenMessengerIsZeroAddress()
-        public
-    {
+    function testAddLocalTokenMessenger_revertsWhenNewTokenMessengerIsZeroAddress() public {
         vm.expectRevert("Invalid TokenMessenger address");
         tokenMinter.addLocalTokenMessenger(address(0));
     }
 
-    function testAddLocalTokenMessenger_revertsWhenCalledByNonOwner(
-        address _tokenMessenger
-    ) public {
+    function testAddLocalTokenMessenger_revertsWhenCalledByNonOwner(address _tokenMessenger) public {
         expectRevertWithWrongOwner();
         tokenMinter.addLocalTokenMessenger(_tokenMessenger);
     }
@@ -333,41 +250,23 @@ contract TokenBurnerTest is Test, TestUtils {
         removeLocalTokenMessenger(_tokenMinter);
     }
 
-    function testRemoveLocalTokenMessenger_revertsWhenNoLocalTokenMessengerSet()
-        public
-    {
+    function testRemoveLocalTokenMessenger_revertsWhenNoLocalTokenMessengerSet() public {
         TokenBurner _tokenMinter = new TokenBurner(tokenController);
         vm.expectRevert("No local TokenMessenger is set");
         _tokenMinter.removeLocalTokenMessenger();
     }
 
-    function testRemoveLocalTokenMessenger_revertsWhenCalledByNonOwner()
-        public
-    {
+    function testRemoveLocalTokenMessenger_revertsWhenCalledByNonOwner() public {
         expectRevertWithWrongOwner();
         tokenMinter.removeLocalTokenMessenger();
     }
 
-    function testRescuable(
-        address _rescuer,
-        address _rescueRecipient,
-        uint256 _amount
-    ) public {
-        assertContractIsRescuable(
-            address(tokenMinter),
-            _rescuer,
-            _rescueRecipient,
-            _amount
-        );
+    function testRescuable(address _rescuer, address _rescueRecipient, uint256 _amount) public {
+        assertContractIsRescuable(address(tokenMinter), _rescuer, _rescueRecipient, _amount);
     }
 
     function testPausable(address _newPauser) public {
-        assertContractIsPausable(
-            address(tokenMinter),
-            pauser,
-            _newPauser,
-            tokenMinter.owner()
-        );
+        assertContractIsPausable(address(tokenMinter), pauser, _newPauser, tokenMinter.owner());
     }
 
     function testTransferOwnershipAndAcceptOwnership() public {
@@ -375,24 +274,14 @@ contract TokenBurnerTest is Test, TestUtils {
         transferOwnershipAndAcceptOwnership(address(tokenMinter), _newOwner);
     }
 
-    function testTransferOwnershipWithoutAcceptingThenTransferToNewOwner(
-        address _newOwner,
-        address _secondNewOwner
-    ) public {
-        transferOwnershipWithoutAcceptingThenTransferToNewOwner(
-            address(tokenMinter),
-            _newOwner,
-            _secondNewOwner
-        );
+    function testTransferOwnershipWithoutAcceptingThenTransferToNewOwner(address _newOwner, address _secondNewOwner)
+        public
+    {
+        transferOwnershipWithoutAcceptingThenTransferToNewOwner(address(tokenMinter), _newOwner, _secondNewOwner);
     }
 
     function _linkTokenPair(address _localToken) internal {
-        linkTokenPair(
-            tokenMinter,
-            _localToken,
-            remoteDomain,
-            remoteTokenBytes32
-        );
+        linkTokenPair(tokenMinter, _localToken, remoteDomain, remoteTokenBytes32);
     }
 
     function _burn(uint256 _amount, address _localToken) internal {
@@ -402,11 +291,7 @@ contract TokenBurnerTest is Test, TestUtils {
         localToken.approve(address(mockTokenMessenger), _amount);
 
         vm.prank(mockTokenMessenger);
-        localToken.transferFrom(
-            mintRecipientAddress,
-            address(tokenMinter),
-            _amount
-        );
+        localToken.transferFrom(mintRecipientAddress, address(tokenMinter), _amount);
 
         vm.startPrank(localTokenMessenger);
         tokenMinter.burn(localTokenAddress, _amount);
@@ -423,10 +308,7 @@ contract TokenBurnerTest is Test, TestUtils {
      * @param _remoteToken Address of remote token as bytes32
      * @return keccak hash of packed remote domain and token
      */
-    function _hashRemoteDomainAndToken(
-        uint32 _remoteDomain,
-        bytes32 _remoteToken
-    ) internal pure returns (bytes32) {
+    function _hashRemoteDomainAndToken(uint32 _remoteDomain, bytes32 _remoteToken) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(_remoteDomain, _remoteToken));
     }
 }

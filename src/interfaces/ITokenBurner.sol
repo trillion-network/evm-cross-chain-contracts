@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 /**
  * @title ITokenBurner
@@ -34,10 +34,7 @@ interface ITokenBurner {
      * @param remoteToken Remote token
      * @return local token address
      */
-    function getLocalToken(uint32 remoteDomain, bytes32 remoteToken)
-        external
-        view
-        returns (address);
+    function getLocalToken(uint32 remoteDomain, bytes32 remoteToken) external view returns (address);
 
     /**
      * @notice Set the token controller of this ITokenBurner. Token controller
