@@ -264,6 +264,7 @@ contract TokenMessenger is Rescuable {
     }
 
     /**
+    
      * @notice Withdraw by owner only, to collect payment for depositForBurn
      */
     function withdraw(uint256 amount) external onlyOwner {
