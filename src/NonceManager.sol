@@ -15,19 +15,14 @@
  */
 pragma solidity 0.8.26;
 
-import "./interfaces/ITokenBurner.sol";
-import "./interfaces/IBurnToken.sol";
-import "./roles/Pausable.sol";
 import "./roles/Rescuable.sol";
-import "./roles/TokenController.sol";
 
 /**
- * @title TokenBurner
- * @notice Token Burner
- * @dev Maintains registry of local burnable tokens and corresponding tokens on remote domains.
- * It is assumed that local and remote tokens are fungible at a constant 1:1 exchange rate.
+ * @title NonceManager
+ * @notice Nonce Manager
+ * @dev Maintains unique nonce
  */
-contract TokenBurner is ITokenBurner, TokenController, Pausable, Rescuable {
+contract NonceManager is Rescuable {
     // ============ Events ============
     /**
      * @notice Emitted when a local TokenMessenger is added
@@ -47,6 +42,9 @@ contract TokenBurner is ITokenBurner, TokenController, Pausable, Rescuable {
     // Local TokenMessenger with permission to call mint and burn on this TokenBurner
     address public localTokenMessenger;
 
+    // Next available nonce from this source domain
+    uint64 public nextAvailableNonce;
+
     // ============ Modifiers ============
     /**
      * @notice Only accept messages from the registered message transmitter on local domain
@@ -57,30 +55,18 @@ contract TokenBurner is ITokenBurner, TokenController, Pausable, Rescuable {
     }
 
     // ============ Constructor ============
-    /**
-     * @param _tokenController Token controller address
-     */
-    constructor(address _tokenController) {
-        _setTokenController(_tokenController);
-    }
+    constructor() {}
 
     // ============ External Functions  ============
 
     /**
-     * @notice Burn tokens owned by this TokenBurner.
-     * @param burnToken burnable token address.
-     * @param burnAmount amount of tokens to burn. Must be
-     * > 0, and <= maximum burn amount per message.
+     * Reserve and increment next available nonce
+     * @return nonce reserved
      */
-    function burn(address burnToken, uint256 burnAmount)
-        external
-        override
-        whenNotPaused
-        onlyLocalTokenMessenger
-        onlyWithinBurnLimit(burnToken, burnAmount)
-    {
-        IBurnToken _token = IBurnToken(burnToken);
-        _token.burnByBurnerOnly(burnAmount);
+    function reserveAndIncrementNonce() external onlyLocalTokenMessenger returns (uint64) {
+        uint64 _nonceReserved = nextAvailableNonce;
+        nextAvailableNonce = nextAvailableNonce + 1;
+        return _nonceReserved;
     }
 
     /**
@@ -95,6 +81,7 @@ contract TokenBurner is ITokenBurner, TokenController, Pausable, Rescuable {
         require(localTokenMessenger == address(0), "Local TokenMessenger already set");
 
         localTokenMessenger = newLocalTokenMessenger;
+
         emit LocalTokenMessengerAdded(localTokenMessenger);
     }
 
@@ -111,24 +98,11 @@ contract TokenBurner is ITokenBurner, TokenController, Pausable, Rescuable {
     }
 
     /**
-     * @notice Set tokenController to `newTokenController`, and
-     * emit `SetTokenController` event.
-     * @dev newTokenController must be nonzero.
-     * @param newTokenController address of new token controller
+     * @notice Withdraw by owner only, to collect payment for depositForBurn
      */
-    function setTokenController(address newTokenController) external override onlyOwner {
-        _setTokenController(newTokenController);
-    }
-
-    /**
-     * @notice Get the local token address associated with the given
-     * remote domain and token.
-     * @param remoteDomain Remote domain
-     * @param remoteToken Remote token
-     * @return local token address
-     */
-    function getLocalToken(uint32 remoteDomain, bytes32 remoteToken) external view override returns (address) {
-        return _getLocalToken(remoteDomain, remoteToken);
+    function withdraw(uint256 amount) external onlyOwner {
+        require(address(this).balance >= amount, "Insufficient balance");
+        payable(msg.sender).transfer(amount);
     }
 
     // ============ Internal Utils ============

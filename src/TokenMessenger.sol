@@ -1,5 +1,21 @@
-pragma solidity 0.8.20;
+/*
+ * Copyright (c) 2024, TrillionX Limited.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+pragma solidity 0.8.26;
 
+import "./interfaces/INonceManager.sol";
 import "./interfaces/ITokenBurner.sol";
 import "./interfaces/IBurnToken.sol";
 import "./roles/Rescuable.sol";
@@ -61,15 +77,30 @@ contract TokenMessenger is Rescuable {
      */
     event LocalBurnerRemoved(address localBurner);
 
+    /**
+     * @notice Emitted when the nonce manager is added
+     * @param nonceManager address of nonce manager
+     * @notice Emitted when the nonce manager is added
+     */
+    event NonceManagerAdded(address nonceManager);
+
+    /**
+     * @notice Emitted when the nonce manager is removed
+     * @param nonceManager address of nonce manager
+     * @notice Emitted when the nonce manager is removed
+     */
+    event NonceManagerRemoved(address nonceManager);
+
     // Burner responsible for burning tokens on the local domain
     ITokenBurner public localBurner;
+
+    // Nonce Manager responsible for providing unique nonce for transaction
+    INonceManager public nonceManager;
 
     // Valid TokenMessengers on remote domains
     mapping(uint32 => bytes32) public remoteTokenMessengers;
 
-    // Next available nonce from this source domain
-    uint64 public nextAvailableNonce;
-
+    // Fee to facilitate the bridge in ETH
     uint256 public fee;
 
     // ============ Constructor ============
@@ -92,23 +123,21 @@ contract TokenMessenger is Rescuable {
      * @param burnToken address of contract to burn deposited tokens, on local domain
      * @return _nonce unique nonce reserved by message
      */
-    function depositForBurn(
-        uint256 amount,
-        uint32 destinationDomain,
-        bytes32 mintRecipient,
-        address burnToken
-    ) payable external returns (uint64 _nonce) {
+    function depositForBurn(uint256 amount, uint32 destinationDomain, bytes32 mintRecipient, address burnToken)
+        external
+        payable
+        returns (uint64 _nonce)
+    {
         require(msg.value == fee, "invalid payment");
-        return
-            _depositForBurn(
-                amount,
-                destinationDomain,
-                mintRecipient,
-                burnToken,
-                // (bytes32(0) here indicates that any address can call receiveMessage()
-                // on the destination domain, triggering mint to specified `mintRecipient`)
-                bytes32(0)
-            );
+        return _depositForBurn(
+            amount,
+            destinationDomain,
+            mintRecipient,
+            burnToken,
+            // (bytes32(0) here indicates that any address can call receiveMessage()
+            // on the destination domain, triggering mint to specified `mintRecipient`)
+            bytes32(0)
+        );
     }
 
     /**
@@ -143,14 +172,7 @@ contract TokenMessenger is Rescuable {
         // Destination caller must be nonzero. To allow any destination caller, use depositForBurn().
         require(destinationCaller != bytes32(0), "Invalid destination caller");
 
-        return
-            _depositForBurn(
-                amount,
-                destinationDomain,
-                mintRecipient,
-                burnToken,
-                destinationCaller
-            );
+        return _depositForBurn(amount, destinationDomain, mintRecipient, burnToken, destinationCaller);
     }
 
     function setFee(uint256 _fee) external onlyOwner {
@@ -164,16 +186,10 @@ contract TokenMessenger is Rescuable {
      * @param domain Domain of remote TokenMessenger.
      * @param tokenMessenger Address of remote TokenMessenger as bytes32.
      */
-    function addRemoteTokenMessenger(uint32 domain, bytes32 tokenMessenger)
-        external
-        onlyOwner
-    {
+    function addRemoteTokenMessenger(uint32 domain, bytes32 tokenMessenger) external onlyOwner {
         require(tokenMessenger != bytes32(0), "bytes32(0) not allowed");
 
-        require(
-            remoteTokenMessengers[domain] == bytes32(0),
-            "TokenMessenger already set"
-        );
+        require(remoteTokenMessengers[domain] == bytes32(0), "TokenMessenger already set");
 
         remoteTokenMessengers[domain] = tokenMessenger;
         emit RemoteTokenMessengerAdded(domain, tokenMessenger);
@@ -186,10 +202,7 @@ contract TokenMessenger is Rescuable {
      */
     function removeRemoteTokenMessenger(uint32 domain) external onlyOwner {
         // No TokenMessenger set for given remote domain.
-        require(
-            remoteTokenMessengers[domain] != bytes32(0),
-            "No TokenMessenger set"
-        );
+        require(remoteTokenMessengers[domain] != bytes32(0), "No TokenMessenger set");
 
         bytes32 _removedTokenMessenger = remoteTokenMessengers[domain];
         delete remoteTokenMessengers[domain];
@@ -204,10 +217,7 @@ contract TokenMessenger is Rescuable {
     function addLocalBurner(address newLocalBurner) external onlyOwner {
         require(newLocalBurner != address(0), "Zero address not allowed");
 
-        require(
-            address(localBurner) == address(0),
-            "Local burner is already set."
-        );
+        require(address(localBurner) == address(0), "Local burner is already set.");
 
         localBurner = ITokenBurner(newLocalBurner);
 
@@ -227,6 +237,34 @@ contract TokenMessenger is Rescuable {
     }
 
     /**
+     * @notice Add nonce manager for the local domain.
+     * @dev Reverts if a nonce manager is already set for the local domain.
+     * @param newNonceManager The address of the nonce manager on the local domain.
+     */
+    function addNonceManager(address newNonceManager) external onlyOwner {
+        require(newNonceManager != address(0), "Zero address not allowed");
+
+        require(address(nonceManager) == address(0), "Nonce Manager is already set.");
+
+        nonceManager = INonceManager(newNonceManager);
+
+        emit NonceManagerAdded(newNonceManager);
+    }
+
+    /**
+     * @notice Remove the nonce manager for the local domain.
+     * @dev Reverts if the nonce manager of the local domain is not set.
+     */
+    function removeNonceManager() external onlyOwner {
+        address _nonceManagerAddress = address(nonceManager);
+        require(_nonceManagerAddress != address(0), "No nonce manager is set.");
+
+        delete nonceManager;
+        emit NonceManagerRemoved(_nonceManagerAddress);
+    }
+
+    /**
+    
      * @notice Withdraw by owner only, to collect payment for depositForBurn
      */
     function withdraw(uint256 amount) external onlyOwner {
@@ -255,24 +293,16 @@ contract TokenMessenger is Rescuable {
         require(_amount > 0, "Amount must be nonzero");
         require(_mintRecipient != bytes32(0), "Mint recipient must be nonzero");
 
-        bytes32 _destinationTokenMessenger = _getRemoteTokenMessenger(
-            _destinationDomain
-        );
+        bytes32 _destinationTokenMessenger = _getRemoteTokenMessenger(_destinationDomain);
         require(_destinationTokenMessenger != bytes32(0), "Remote token messenger not set");
 
         ITokenBurner _localBurner = _getLocalBurner();
         IBurnToken _burnToken = IBurnToken(_burnTokenAddress);
-        require(
-            _burnToken.transferFrom(
-                msg.sender,
-                address(_localBurner),
-                _amount
-            ),
-            "Transfer operation failed"
-        );
+        require(_burnToken.transferFrom(msg.sender, address(_localBurner), _amount), "Transfer operation failed");
         _localBurner.burn(_burnTokenAddress, _amount);
 
-        uint64 _nonceReserved = _reserveAndIncrementNonce();
+        INonceManager _nonceManager = _getNonceManager();
+        uint64 _nonceReserved = _nonceManager.reserveAndIncrementNonce();
 
         emit DepositForBurn(
             _nonceReserved,
@@ -293,11 +323,7 @@ contract TokenMessenger is Rescuable {
      * @param _domain The domain for which to get the remote TokenMessenger
      * @return _tokenMessenger The address of the TokenMessenger on `_domain` as bytes32
      */
-    function _getRemoteTokenMessenger(uint32 _domain)
-        internal
-        view
-        returns (bytes32)
-    {
+    function _getRemoteTokenMessenger(uint32 _domain) internal view returns (bytes32) {
         bytes32 _tokenMessenger = remoteTokenMessengers[_domain];
         require(_tokenMessenger != bytes32(0), "No TokenMessenger for domain");
         return _tokenMessenger;
@@ -313,12 +339,11 @@ contract TokenMessenger is Rescuable {
     }
 
     /**
-     * Reserve and increment next available nonce
-     * @return nonce reserved
+     * @notice return the nonce manager address if it is set, else revert.
+     * @return nonce manager as INonceManager.
      */
-    function _reserveAndIncrementNonce() internal returns (uint64) {
-        uint64 _nonceReserved = nextAvailableNonce;
-        nextAvailableNonce = nextAvailableNonce + 1;
-        return _nonceReserved;
+    function _getNonceManager() internal view returns (INonceManager) {
+        require(address(nonceManager) != address(0), "Nonce manager is not set");
+        return nonceManager;
     }
 }

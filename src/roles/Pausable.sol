@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 import "./Ownable2Step.sol";
 
@@ -77,10 +77,7 @@ contract Pausable is Ownable2Step {
      * @dev update the pauser role
      */
     function updatePauser(address _newPauser) external onlyOwner {
-        require(
-            _newPauser != address(0),
-            "Pausable: new pauser is the zero address"
-        );
+        require(_newPauser != address(0), "Pausable: new pauser is the zero address");
         _pauser = _newPauser;
         emit PauserChanged(_pauser);
     }

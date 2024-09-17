@@ -3,10 +3,10 @@
   "license": "Apache-2.0",
   "scripts": {
     "lint": "solhint '**/*.sol'",
-    "deploy:sepolia": "forge script -vvvvv DeployScript --sig \"run(string)\" sepolia",
-    "deploy:sepolia:broadcast": "forge script DeployScript --sig \"run(string)\" --broadcast sepolia --verify --ffi -vvvv",
-    "deploy:optimismSepolia": "forge script -vvvvv DeployScript --sig \"run(string)\" optimismSepolia",
-    "deploy:optimismSepolia:broadcast": "forge script DeployScript --sig \"run(string)\" --broadcast optimismSepolia --verify --ffi -vvvv"
+    "deploy:sepolia": "forge script --verify --ffi -vvvv DeployScript --sig \"run(string)\" sepolia",
+    "deploy:sepolia:broadcast": "forge script DeployScript --verify --ffi -vvvv --broadcast --sig \"run(string)\" sepolia",
+    "deploy:optimismSepolia": "forge script DeployScript --verify --ffi -vvvv --sig \"run(string)\" optimismSepolia",
+    "deploy:optimismSepolia:broadcast": "forge script DeployScript --verify --ffi -vvvv --broadcast --sig \"run(string)\" optimismSepolia"
   },
   "devDependencies": {
     "solhint": "^3.3.7"

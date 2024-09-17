@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 import "../../src/interfaces/IBurnToken.sol";
 
 // TODO [BRAAV-12776] replace this with real FiatToken
 contract MockBurnToken is IBurnToken {
-
     uint256 internal _totalSupply = 0;
 
     event Mint(address indexed minter, address indexed to, uint256 amount);
@@ -42,12 +41,7 @@ contract MockBurnToken is IBurnToken {
      * @dev Get token balance of an account
      * @param account address The account
      */
-    function balanceOf(address account)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function balanceOf(address account) external view override returns (uint256) {
         return balances[account];
     }
 
@@ -58,12 +52,7 @@ contract MockBurnToken is IBurnToken {
      * @param spender   Spender's address
      * @return Allowance amount
      */
-    function allowance(address owner, address spender)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function allowance(address owner, address spender) external view override returns (uint256) {
         return allowed[owner][spender];
     }
 
@@ -73,17 +62,11 @@ contract MockBurnToken is IBurnToken {
      * amount is less than or equal to the minter's account balance
      * @param _amount uint256 the amount of tokens to be burned
      */
-    function burn(uint256 _amount) external override {
+    function burnByBurnerOnly(uint256 _amount) external override {
         uint256 balance = balances[msg.sender];
         _totalSupply = _totalSupply - _amount;
-        require(
-            _amount > 0,
-            "MockMintBurnToken: burn amount not greater than 0"
-        );
-        require(
-            balance >= _amount,
-            "MockMintBurnToken: burn amount exceeds balance"
-        );
+        require(_amount > 0, "MockMintBurnToken: burn amount not greater than 0");
+        require(balance >= _amount, "MockMintBurnToken: burn amount exceeds balance");
         balances[msg.sender] = balance - _amount;
         emit Burn(msg.sender, _amount);
         emit Transfer(msg.sender, address(0), _amount);
@@ -95,11 +78,7 @@ contract MockBurnToken is IBurnToken {
      * @param value Transfer amount
      * @return True if successful
      */
-    function transfer(address to, uint256 value)
-        external
-        override
-        returns (bool)
-    {
+    function transfer(address to, uint256 value) external override returns (bool) {
         _transfer(msg.sender, to, value);
         return true;
     }
@@ -111,15 +90,8 @@ contract MockBurnToken is IBurnToken {
      * @param value Transfer amount
      * @return True if successful
      */
-    function transferFrom(
-        address from,
-        address to,
-        uint256 value
-    ) external override returns (bool) {
-        require(
-            value <= allowed[from][msg.sender],
-            "ERC20: transfer amount exceeds allowance"
-        );
+    function transferFrom(address from, address to, uint256 value) external override returns (bool) {
+        require(value <= allowed[from][msg.sender], "ERC20: transfer amount exceeds allowance");
         _transfer(from, to, value);
         allowed[from][msg.sender] = allowed[from][msg.sender] - value;
         return true;
@@ -132,11 +104,7 @@ contract MockBurnToken is IBurnToken {
      * @param value     Allowance amount
      * @return True if successful
      */
-    function approve(address spender, uint256 value)
-        external
-        override
-        returns (bool)
-    {
+    function approve(address spender, uint256 value) external override returns (bool) {
         _approve(msg.sender, spender, value);
         return true;
     }
@@ -147,15 +115,8 @@ contract MockBurnToken is IBurnToken {
      * @param to    Payee's address
      * @param value Transfer amount
      */
-    function _transfer(
-        address from,
-        address to,
-        uint256 value
-    ) internal {
-        require(
-            value <= balances[from],
-            "ERC20: transfer amount exceeds balance"
-        );
+    function _transfer(address from, address to, uint256 value) internal {
+        require(value <= balances[from], "ERC20: transfer amount exceeds balance");
 
         balances[from] = balances[from] - value;
         balances[to] = balances[to] + value;
@@ -168,11 +129,7 @@ contract MockBurnToken is IBurnToken {
      * @param spender   Spender's address
      * @param value     Allowance amount
      */
-    function _approve(
-        address owner,
-        address spender,
-        uint256 value
-    ) internal {
+    function _approve(address owner, address spender, uint256 value) internal {
         require(owner != address(0), "ERC20: approve from the zero address");
         require(spender != address(0), "ERC20: approve to the zero address");
         allowed[owner][spender] = value;

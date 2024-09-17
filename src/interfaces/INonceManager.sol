@@ -15,18 +15,14 @@
  */
 pragma solidity 0.8.26;
 
-import "../../lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-
 /**
- * @title IBurnToken
- * @notice interface for burnable ERC20 token
+ * @title INonceManager
+ * @notice interface for maintaining unique nonce for every transaction
  */
-interface IBurnToken is IERC20 {
+interface INonceManager {
     /**
-     * @dev allows a minter to burn some of its own tokens
-     * Validates that caller is a minter and that sender is not blacklisted
-     * amount is less than or equal to the minter's account balance
-     * @param amount uint256 the amount of tokens to be burned
+     * @notice Get unique nonce
+     * @return nonce that is unique
      */
-    function burnByBurnerOnly(uint256 amount) external;
+    function reserveAndIncrementNonce() external returns (uint64);
 }

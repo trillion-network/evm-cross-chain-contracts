@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 import "./Ownable2Step.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -54,11 +54,7 @@ contract Rescuable is Ownable2Step {
      * @param to        Recipient address
      * @param amount    Amount to withdraw
      */
-    function rescueERC20(
-        IERC20 tokenContract,
-        address to,
-        uint256 amount
-    ) external onlyRescuer {
+    function rescueERC20(IERC20 tokenContract, address to, uint256 amount) external onlyRescuer {
         tokenContract.safeTransfer(to, amount);
     }
 
@@ -67,10 +63,7 @@ contract Rescuable is Ownable2Step {
      * @param newRescuer New rescuer's address
      */
     function updateRescuer(address newRescuer) external onlyOwner {
-        require(
-            newRescuer != address(0),
-            "Rescuable: new rescuer is the zero address"
-        );
+        require(newRescuer != address(0), "Rescuable: new rescuer is the zero address");
         _rescuer = newRescuer;
         emit RescuerChanged(newRescuer);
     }

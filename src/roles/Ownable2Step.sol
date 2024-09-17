@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -36,10 +36,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 abstract contract Ownable2Step is Ownable {
     address private _pendingOwner;
 
-    event OwnershipTransferStarted(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
+    event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
     constructor() Ownable(_msgSender()) {}
 
@@ -54,12 +51,7 @@ abstract contract Ownable2Step is Ownable {
      * @dev Starts the ownership transfer of the contract to a new account. Replaces the pending transfer if there is one.
      * Can only be called by the current owner.
      */
-    function transferOwnership(address newOwner)
-        public
-        virtual
-        override
-        onlyOwner
-    {
+    function transferOwnership(address newOwner) public virtual override onlyOwner {
         _pendingOwner = newOwner;
         emit OwnershipTransferStarted(owner(), newOwner);
     }
@@ -78,10 +70,7 @@ abstract contract Ownable2Step is Ownable {
      */
     function acceptOwnership() external {
         address sender = _msgSender();
-        require(
-            pendingOwner() == sender,
-            "Ownable2Step: caller is not the new owner"
-        );
+        require(pendingOwner() == sender, "Ownable2Step: caller is not the new owner");
         _transferOwnership(sender);
     }
 }

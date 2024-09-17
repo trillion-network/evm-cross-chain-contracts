@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2022, Circle Internet Financial Limited.
+ * Copyright (c) 2024, TrillionX Limited.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-pragma solidity 0.8.20;
+pragma solidity 0.8.26;
 
 /**
  * @title TokenController
@@ -29,11 +29,7 @@ abstract contract TokenController {
      * @param remoteDomain remote domain
      * @param remoteToken token on `remoteDomain` corresponding to `localToken`
      */
-    event TokenPairLinked(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
-    );
+    event TokenPairLinked(address localToken, uint32 remoteDomain, bytes32 remoteToken);
 
     /**
      * @notice Emitted when a token pair is unlinked
@@ -41,21 +37,14 @@ abstract contract TokenController {
      * @param remoteDomain remote domain
      * @param remoteToken token on `remoteDomain` unlinked from `localToken`
      */
-    event TokenPairUnlinked(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
-    );
+    event TokenPairUnlinked(address localToken, uint32 remoteDomain, bytes32 remoteToken);
 
     /**
      * @notice Emitted when a burn limit per message is set for a particular token
      * @param token local token address
      * @param burnLimitPerMessage burn limit per message for `token`
      */
-    event SetBurnLimitPerMessage(
-        address indexed token,
-        uint256 burnLimitPerMessage
-    );
+    event SetBurnLimitPerMessage(address indexed token, uint256 burnLimitPerMessage);
 
     /**
      * @notice Emitted when token controller is set
@@ -80,10 +69,7 @@ abstract contract TokenController {
      * @dev Throws if called by any account other than the tokenController.
      */
     modifier onlyTokenController() {
-        require(
-            msg.sender == _tokenController,
-            "Caller is not tokenController"
-        );
+        require(msg.sender == _tokenController, "Caller is not tokenController");
         _;
     }
 
@@ -98,10 +84,7 @@ abstract contract TokenController {
     modifier onlyWithinBurnLimit(address token, uint256 amount) {
         uint256 _allowedBurnAmount = burnLimitsPerMessage[token];
         require(_allowedBurnAmount > 0, "Burn token not supported");
-        require(
-            amount <= _allowedBurnAmount,
-            "Burn amount exceeds per tx limit"
-        );
+        require(amount <= _allowedBurnAmount, "Burn amount exceeds per tx limit");
         _;
     }
 
@@ -123,21 +106,11 @@ abstract contract TokenController {
      * can map to the same local token.
      * - Setting a token pair does not enable the `localToken` (that requires calling setLocalTokenEnabledStatus.)
      */
-    function linkTokenPair(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
-    ) external onlyTokenController {
-        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
-            remoteDomain,
-            remoteToken
-        );
+    function linkTokenPair(address localToken, uint32 remoteDomain, bytes32 remoteToken) external onlyTokenController {
+        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(remoteDomain, remoteToken);
 
         // remote token must not be already linked to a local token
-        require(
-            remoteTokensToLocalTokens[_remoteTokensKey] == address(0),
-            "Unable to link token pair"
-        );
+        require(remoteTokensToLocalTokens[_remoteTokensKey] == address(0), "Unable to link token pair");
 
         remoteTokensToLocalTokens[_remoteTokensKey] = localToken;
 
@@ -154,21 +127,14 @@ abstract contract TokenController {
      * can map to the same local token.
      * - Unlinking a token pair does not disable burning the `localToken` (that requires calling setMaxBurnAmountPerMessage.)
      */
-    function unlinkTokenPair(
-        address localToken,
-        uint32 remoteDomain,
-        bytes32 remoteToken
-    ) external onlyTokenController {
-        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
-            remoteDomain,
-            remoteToken
-        );
+    function unlinkTokenPair(address localToken, uint32 remoteDomain, bytes32 remoteToken)
+        external
+        onlyTokenController
+    {
+        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(remoteDomain, remoteToken);
 
         // remote token must be linked to a local token before unlink
-        require(
-            remoteTokensToLocalTokens[_remoteTokensKey] != address(0),
-            "Unable to unlink token pair"
-        );
+        require(remoteTokensToLocalTokens[_remoteTokensKey] != address(0), "Unable to unlink token pair");
 
         delete remoteTokensToLocalTokens[_remoteTokensKey];
 
@@ -183,10 +149,7 @@ abstract contract TokenController {
      * @param localToken Local token to set the maximum burn amount per message of.
      * @param burnLimitPerMessage Maximum burn amount per message to set.
      */
-    function setMaxBurnAmountPerMessage(
-        address localToken,
-        uint256 burnLimitPerMessage
-    ) external onlyTokenController {
+    function setMaxBurnAmountPerMessage(address localToken, uint256 burnLimitPerMessage) external onlyTokenController {
         burnLimitsPerMessage[localToken] = burnLimitPerMessage;
 
         emit SetBurnLimitPerMessage(localToken, burnLimitPerMessage);
@@ -200,10 +163,7 @@ abstract contract TokenController {
      * @param newTokenController address of new token controller
      */
     function _setTokenController(address newTokenController) internal {
-        require(
-            newTokenController != address(0),
-            "Invalid token controller address"
-        );
+        require(newTokenController != address(0), "Invalid token controller address");
         _tokenController = newTokenController;
         emit SetTokenController(newTokenController);
     }
@@ -214,15 +174,8 @@ abstract contract TokenController {
      * @param remoteToken Remote token
      * @return Local token address
      */
-    function _getLocalToken(uint32 remoteDomain, bytes32 remoteToken)
-        internal
-        view
-        returns (address)
-    {
-        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(
-            remoteDomain,
-            remoteToken
-        );
+    function _getLocalToken(uint32 remoteDomain, bytes32 remoteToken) internal view returns (address) {
+        bytes32 _remoteTokensKey = _hashRemoteDomainAndToken(remoteDomain, remoteToken);
 
         return remoteTokensToLocalTokens[_remoteTokensKey];
     }
@@ -233,11 +186,7 @@ abstract contract TokenController {
      * @param remoteToken Address of remote token as bytes32
      * @return keccak hash of packed remote domain and token
      */
-    function _hashRemoteDomainAndToken(uint32 remoteDomain, bytes32 remoteToken)
-        internal
-        pure
-        returns (bytes32)
-    {
+    function _hashRemoteDomainAndToken(uint32 remoteDomain, bytes32 remoteToken) internal pure returns (bytes32) {
         return keccak256(abi.encodePacked(remoteDomain, remoteToken));
     }
 }
