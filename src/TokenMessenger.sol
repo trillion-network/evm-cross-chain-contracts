@@ -1,30 +1,17 @@
-/*
- * Copyright (c) 2024, TrillionX Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "./interfaces/INonceManager.sol";
-import "./interfaces/ITokenBurner.sol";
-import "./interfaces/IBurnToken.sol";
-import "./roles/Rescuable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {INonceManager} from "./interfaces/INonceManager.sol";
+import {ITokenBurner} from "./interfaces/ITokenBurner.sol";
+import {IBurnToken} from "./interfaces/IBurnToken.sol";
+import {Rescuable} from "./roles/Rescuable.sol";
 
 /**
  * @title TokenMessenger
  * @notice Just support depositForBurn and emit DepositForBurn event
  */
-contract TokenMessenger is Rescuable {
+contract TokenMessenger is Rescuable, ReentrancyGuard {
     // ============ Events ============
     /**
      * @notice Emitted when a DepositForBurn message is sent
@@ -264,12 +251,12 @@ contract TokenMessenger is Rescuable {
     }
 
     /**
-    
      * @notice Withdraw by owner only, to collect payment for depositForBurn
      */
-    function withdraw(uint256 amount) external onlyOwner {
+    function withdraw(uint256 amount) external onlyOwner nonReentrant {
         require(address(this).balance >= amount, "Insufficient balance");
-        payable(msg.sender).transfer(amount);
+        (bool success, ) = _msgSender().call{value:amount}("");
+        require(success, "Transfer failed.");
     }
 
     // ============ Internal Utils ============
@@ -298,7 +285,7 @@ contract TokenMessenger is Rescuable {
 
         ITokenBurner _localBurner = _getLocalBurner();
         IBurnToken _burnToken = IBurnToken(_burnTokenAddress);
-        require(_burnToken.transferFrom(msg.sender, address(_localBurner), _amount), "Transfer operation failed");
+        require(_burnToken.transferFrom(_msgSender(), address(_localBurner), _amount), "Transfer operation failed");
         _localBurner.burn(_burnTokenAddress, _amount);
 
         INonceManager _nonceManager = _getNonceManager();
@@ -308,7 +295,7 @@ contract TokenMessenger is Rescuable {
             _nonceReserved,
             _burnTokenAddress,
             _amount,
-            msg.sender,
+            _msgSender(),
             _mintRecipient,
             _destinationDomain,
             _destinationTokenMessenger,

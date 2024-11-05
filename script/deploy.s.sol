@@ -1,12 +1,13 @@
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "forge-std/Script.sol";
-import "forge-std/console.sol";
+import {Script} from "forge-std/Script.sol";
+import {console} from "forge-std/console.sol";
 
-import "../src/messages/Message.sol";
-import "../src/NonceManager.sol";
-import "../src/TokenBurner.sol";
-import "../src/TokenMessenger.sol";
+import {Message} from "../src/messages/Message.sol";
+import {NonceManager} from "../src/NonceManager.sol";
+import {TokenBurner} from "../src/TokenBurner.sol";
+import {TokenMessenger} from "../src/TokenMessenger.sol";
 
 contract DeployScript is Script {
     address private tokenContractAddress;

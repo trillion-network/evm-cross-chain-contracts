@@ -1,24 +1,13 @@
-/*
- * Copyright (c) 2024, TrillionX Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "../src/TokenBurner.sol";
-import "../src/messages/Message.sol";
-import "../lib/forge-std/src/Test.sol";
-import "./mocks/MockBurnToken.sol";
+import {Pausable} from "../src/roles/Pausable.sol";
+import {Rescuable} from "../src/roles/Rescuable.sol";
+import {Ownable2Step} from "../src/roles/Ownable2Step.sol";
+import {TokenBurner} from "../src/TokenBurner.sol";
+import {Message} from "../src/messages/Message.sol";
+import {Test} from "../lib/forge-std/src/Test.sol";
+import {MockBurnToken} from "./mocks/MockBurnToken.sol";
 
 contract TestUtils is Test {
     /**
@@ -44,6 +33,8 @@ contract TestUtils is Test {
     event Unpause();
 
     event PauserChanged(address indexed newAddress);
+
+    error OwnableUnauthorizedAccount(address account);
 
     // test keys
     uint256 attesterPK = 1;
@@ -117,7 +108,7 @@ contract TestUtils is Test {
 
     function expectRevertWithWrongOwner() public {
         vm.prank(arbitraryAddress);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, arbitraryAddress));
     }
 
     function expectRevertWithWrongTokenController() public {
@@ -137,6 +128,8 @@ contract TestUtils is Test {
 
         // _rescueRecipient's initial balance of _mockBurnToken is 0
         assertEq(_mockBurnToken.balanceOf(_rescueRecipient), 0);
+
+        _mockBurnToken.mint(_rescueRecipient, _amount);
 
         // _rescueRecipient accidentally sends _mockBurnToken to the _rescuableContractAddress
         vm.prank(_rescueRecipient);

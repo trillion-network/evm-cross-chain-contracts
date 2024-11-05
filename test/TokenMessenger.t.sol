@@ -1,27 +1,13 @@
-/*
- * Copyright (c) 2024, TrillionX Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "../lib/forge-std/src/Test.sol";
-import "../src/messages/Message.sol";
-import "../src/NonceManager.sol";
-import "../src/TokenMessenger.sol";
-import "../src/TokenBurner.sol";
-import "./mocks/MockBurnToken.sol";
-import "./TestUtils.sol";
+import {Test} from "../lib/forge-std/src/Test.sol";
+import {Message} from "../src/messages/Message.sol";
+import {NonceManager} from "../src/NonceManager.sol";
+import {TokenMessenger} from "../src/TokenMessenger.sol";
+import {TokenBurner} from "../src/TokenBurner.sol";
+import {MockBurnToken} from "./mocks/MockBurnToken.sol";
+import {TestUtils} from "./TestUtils.sol";
 
 contract TokenMessengerTest is Test, TestUtils {
     // Events
@@ -40,18 +26,18 @@ contract TokenMessengerTest is Test, TestUtils {
     event RemoteTokenMessengerRemoved(uint32 domain, bytes32 tokenMessenger);
 
     /**
-     * @notice Emitted when the local minter is added
-     * @param localMinter address of local minter
-     * @notice Emitted when the local minter is added
+     * @notice Emitted when the local burner is added
+     * @param localMinter address of local burner
+     * @notice Emitted when the local burner is added
      */
-    event LocalMinterAdded(address localMinter);
+    event LocalBurnerAdded(address localMinter);
 
     /**
-     * @notice Emitted when the local minter is removed
-     * @param localMinter address of local minter
-     * @notice Emitted when the local minter is removed
+     * @notice Emitted when the local burner is removed
+     * @param localMinter address of local burner
+     * @notice Emitted when the local burner is removed
      */
-    event LocalMinterRemoved(address localMinter);
+    event LocalBurnerRemoved(address localMinter);
 
     /**
      * @notice Emitted when a new message is dispatched
@@ -145,14 +131,14 @@ contract TokenMessengerTest is Test, TestUtils {
         _tokenMessenger.depositForBurn(_amount, remoteDomain, _mintRecipient, address(localToken));
     }
 
-    function testDepositForBurn_revertsIfLocalMinterIsNotSet(uint256 _amount, bytes32 _mintRecipient) public {
+    function testDepositForBurn_revertsIfLocalBurnerIsNotSet(uint256 _amount, bytes32 _mintRecipient) public {
         vm.assume(_mintRecipient != bytes32(0));
         TokenMessenger _tokenMessenger = new TokenMessenger();
 
         _tokenMessenger.addRemoteTokenMessenger(remoteDomain, remoteTokenMessenger);
 
         vm.assume(_amount > 0 && _amount <= maxBurnAmountPerMessage);
-        vm.expectRevert("Local minter is not set");
+        vm.expectRevert("Local burner is not set");
         _tokenMessenger.depositForBurn(_amount, remoteDomain, _mintRecipient, address(localToken));
     }
 
@@ -456,7 +442,7 @@ contract TokenMessengerTest is Test, TestUtils {
 
     function testAddLocalBurner_revertsIfAlreadySet(address _localMinter) public {
         vm.assume(_localMinter != address(0));
-        vm.expectRevert("Local minter is already set.");
+        vm.expectRevert("Local burner is already set.");
         localTokenMessenger.addLocalBurner(_localMinter);
     }
 
@@ -466,23 +452,23 @@ contract TokenMessengerTest is Test, TestUtils {
         localTokenMessenger.addLocalBurner(_localMinter);
     }
 
-    function testRemoveLocalMinter_succeeds() public {
+    function testRemoveLocalBurner_succeeds() public {
         address _localMinter = vm.addr(1);
         TokenMessenger _tokenMessenger = new TokenMessenger();
         _addLocalBurner(_localMinter, _tokenMessenger);
 
         vm.expectEmit(true, true, true, true);
-        emit LocalMinterRemoved(_localMinter);
+        emit LocalBurnerRemoved(_localMinter);
         _tokenMessenger.removeLocalBurner();
     }
 
-    function testRemoveLocalMinter_revertsIfNoLocalMinterSet() public {
+    function testRemoveLocalBurner_revertsIfNoLocalBurnerSet() public {
         TokenMessenger _tokenMessenger = new TokenMessenger();
-        vm.expectRevert("No local minter is set.");
+        vm.expectRevert("No local burner is set.");
         _tokenMessenger.removeLocalBurner();
     }
 
-    function testRemoveLocalMinter_revertsOnNonOwner() public {
+    function testRemoveLocalBurner_revertsOnNonOwner() public {
         expectRevertWithWrongOwner();
         localTokenMessenger.removeLocalBurner();
     }
@@ -507,7 +493,7 @@ contract TokenMessengerTest is Test, TestUtils {
 
     function _addLocalBurner(address _localMinter, TokenMessenger _tokenMessenger) internal {
         vm.expectEmit(true, true, true, true);
-        emit LocalMinterAdded(_localMinter);
+        emit LocalBurnerAdded(_localMinter);
         _tokenMessenger.addLocalBurner(_localMinter);
     }
 

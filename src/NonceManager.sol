@@ -1,28 +1,15 @@
-/*
- * Copyright (c) 2024, TrillionX Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "./roles/Rescuable.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Rescuable} from "./roles/Rescuable.sol";
 
 /**
  * @title NonceManager
  * @notice Nonce Manager
  * @dev Maintains unique nonce
  */
-contract NonceManager is Rescuable {
+contract NonceManager is Rescuable, ReentrancyGuard {
     // ============ Events ============
     /**
      * @notice Emitted when a local TokenMessenger is added
@@ -100,9 +87,10 @@ contract NonceManager is Rescuable {
     /**
      * @notice Withdraw by owner only, to collect payment for depositForBurn
      */
-    function withdraw(uint256 amount) external onlyOwner {
+    function withdraw(uint256 amount) external onlyOwner nonReentrant {
         require(address(this).balance >= amount, "Insufficient balance");
-        payable(msg.sender).transfer(amount);
+        (bool success, ) = _msgSender().call{value:amount}("");
+        require(success, "Transfer failed.");
     }
 
     // ============ Internal Utils ============
@@ -111,6 +99,6 @@ contract NonceManager is Rescuable {
      * @return True if the message sender is the registered local TokenMessenger
      */
     function _isLocalTokenMessenger() internal view returns (bool) {
-        return address(localTokenMessenger) != address(0) && msg.sender == address(localTokenMessenger);
+        return address(localTokenMessenger) != address(0) && _msgSender() == address(localTokenMessenger);
     }
 }
