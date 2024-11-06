@@ -4,10 +4,17 @@ pragma solidity 0.8.26;
 import {IBurnToken} from "../../src/interfaces/IBurnToken.sol";
 import {IMintToken} from "./IMintToken.sol";
 
+/**
+ * @title MockBurnToken
+ * @notice mock token for testing. have both mint and burn function
+ * @custom:security-contact info@trillionnetwork.com
+ */
 contract MockBurnToken is IBurnToken, IMintToken {
     uint256 internal _totalSupply = 0;
 
     event Burn(address indexed burner, uint256 amount);
+    event Transfer(address indexed from, address indexed to, uint256 value);
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
     mapping(address => uint256) internal balances;
     mapping(address => mapping(address => uint256)) internal allowed;

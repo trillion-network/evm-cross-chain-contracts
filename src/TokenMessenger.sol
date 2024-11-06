@@ -10,6 +10,7 @@ import {Rescuable} from "./roles/Rescuable.sol";
 /**
  * @title TokenMessenger
  * @notice Just support depositForBurn and emit DepositForBurn event
+ * @custom:security-contact info@trillionnetwork.com
  */
 contract TokenMessenger is Rescuable, ReentrancyGuard {
     // ============ Events ============

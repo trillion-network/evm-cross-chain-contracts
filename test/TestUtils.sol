@@ -9,6 +9,10 @@ import {Message} from "../src/messages/Message.sol";
 import {Test} from "../lib/forge-std/src/Test.sol";
 import {MockBurnToken} from "./mocks/MockBurnToken.sol";
 
+/**
+ * @title TestUtils
+ * @custom:security-contact info@trillionnetwork.com
+ */
 contract TestUtils is Test {
     /**
      * @notice Emitted when a local TokenMessenger is added

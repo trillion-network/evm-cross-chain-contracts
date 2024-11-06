@@ -9,6 +9,10 @@ import {TokenBurner} from "../src/TokenBurner.sol";
 import {MockBurnToken} from "./mocks/MockBurnToken.sol";
 import {TestUtils} from "./TestUtils.sol";
 
+/**
+ * @title TokenMessengerTest
+ * @custom:security-contact info@trillionnetwork.com
+ */
 contract TokenMessengerTest is Test, TestUtils {
     // Events
     /**

@@ -7,6 +7,7 @@ import {Rescuable} from "./roles/Rescuable.sol";
 /**
  * @title NonceManager
  * @notice Nonce Manager
+ * @custom:security-contact info@trillionnetwork.com
  * @dev Maintains unique nonce
  */
 contract NonceManager is Rescuable, ReentrancyGuard {

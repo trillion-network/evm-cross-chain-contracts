@@ -11,6 +11,7 @@ import {TokenController} from "./roles/TokenController.sol";
 /**
  * @title TokenBurner
  * @notice Token Burner
+ * @custom:security-contact info@trillionnetwork.com
  * @dev Maintains registry of local burnable tokens and corresponding tokens on remote domains.
  * It is assumed that local and remote tokens are fungible at a constant 1:1 exchange rate.
  */

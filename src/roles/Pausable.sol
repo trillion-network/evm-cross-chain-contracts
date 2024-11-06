@@ -6,6 +6,7 @@ import {Ownable2Step} from "./Ownable2Step.sol";
 /**
  * @notice Base contract which allows children to implement an emergency stop
  * mechanism
+ * @custom:security-contact info@trillionnetwork.com
  * @dev Forked from https://github.com/centrehq/centre-tokens/blob/0d3cab14ebd133a83fc834dbd48d0468bdf0b391/contracts/v1/Pausable.sol
  * Modifications:
  * 1. Update Solidity version from 0.6.12 to 0.7.6 (8/23/2022)

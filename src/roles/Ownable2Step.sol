@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
+ * @custom:security-contact info@trillionnetwork.com
  * @dev forked from https://github.com/OpenZeppelin/openzeppelin-contracts/blob/7c5f6bc2c8743d83443fa46395d75f2f3f99054a/contracts/access/Ownable2Step.sol
  * Modifications:
  * 1. Update Solidity version from 0.8.0 to 0.7.6. Version 0.8.0 was used

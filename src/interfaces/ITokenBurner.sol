@@ -4,6 +4,7 @@ pragma solidity 0.8.26;
 /**
  * @title ITokenBurner
  * @notice interface for burner of tokens that are burnable across domains.
+ * @custom:security-contact info@trillionnetwork.com
  */
 interface ITokenBurner {
     /**

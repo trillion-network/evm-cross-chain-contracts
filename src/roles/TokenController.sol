@@ -8,6 +8,7 @@ import {Context} from "@openzeppelin/contracts/utils/Context.sol";
  * @notice Base contract which allows children to control tokens, including mapping
  * address of local tokens to addresses of corresponding tokens on remote domains,
  * and limiting the amount of each token that can be burned per message.
+ * @custom:security-contact info@trillionnetwork.com
  */
 abstract contract TokenController is Context {
     // ============ Events ============

@@ -8,6 +8,10 @@ import {MockBurnToken} from "./mocks/MockBurnToken.sol";
 import {Test} from "../lib/forge-std/src/Test.sol";
 import {IBurnToken} from "../src/interfaces/IBurnToken.sol";
 
+/**
+ * @title TokenBurnerTest
+ * @custom:security-contact info@trillionnetwork.com
+ */
 contract TokenBurnerTest is Test, TestUtils {
     /**
      * @notice Emitted when a token pair is linked

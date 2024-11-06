@@ -6,6 +6,7 @@ import {Ownable2Step} from "../../src/roles/Ownable2Step.sol";
 import {TokenBurner} from "../../src/TokenBurner.sol";
 
 /**
+ * @custom:security-contact info@trillionnetwork.com
  * @dev Negative unit tests of third party OZ contract, Ownable2Step.
  * (Positive tests for transferOwnership and acceptOwnership are covered in
  * MessageTransmitter.t.sol, TokenMessenger.t.sol, and TokenBurner.t.sol.)

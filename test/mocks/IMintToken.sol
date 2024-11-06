@@ -5,7 +5,8 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title IMintToken
- * @notice interface for burnable ERC20 token
+ * @notice interface for mintable ERC20 token
+ * @custom:security-contact info@trillionnetwork.com
  */
 interface IMintToken is IERC20 {
      /**

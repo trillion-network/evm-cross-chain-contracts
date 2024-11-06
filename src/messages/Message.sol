@@ -3,6 +3,7 @@ pragma solidity 0.8.26;
 
 /**
  * @title Message
+ * @custom:security-contact info@trillionnetwork.com
  * @dev utils helper library to convert address to bytes32 and vice versa
  */
 library Message {
