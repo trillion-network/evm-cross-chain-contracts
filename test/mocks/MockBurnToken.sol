@@ -13,8 +13,6 @@ contract MockBurnToken is IBurnToken, IMintToken {
     uint256 internal _totalSupply = 0;
 
     event Burn(address indexed burner, uint256 amount);
-    event Transfer(address indexed from, address indexed to, uint256 value);
-    event Approval(address indexed owner, address indexed spender, uint256 value);
 
     mapping(address => uint256) internal balances;
     mapping(address => mapping(address => uint256)) internal allowed;
