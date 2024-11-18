@@ -1,27 +1,17 @@
-/*
- * Copyright (c) 2024, TrillionX Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "../../src/interfaces/IBurnToken.sol";
+import {IBurnToken} from "../../src/interfaces/IBurnToken.sol";
+import {IMintToken} from "./IMintToken.sol";
 
-// TODO [BRAAV-12776] replace this with real FiatToken
-contract MockBurnToken is IBurnToken {
+/**
+ * @title MockBurnToken
+ * @notice mock token for testing. have both mint and burn function
+ * @custom:security-contact info@trillionnetwork.com
+ */
+contract MockBurnToken is IBurnToken, IMintToken {
     uint256 internal _totalSupply = 0;
 
-    event Mint(address indexed minter, address indexed to, uint256 amount);
     event Burn(address indexed burner, uint256 amount);
 
     mapping(address => uint256) internal balances;
@@ -57,9 +47,27 @@ contract MockBurnToken is IBurnToken {
     }
 
     /**
-     * @dev allows a minter to burn some of its own tokens
-     * Validates that caller is a minter and that sender is not blacklisted
-     * amount is less than or equal to the minter's account balance
+     * @dev Function to mint tokens
+     * @param _to The address that will receive the minted tokens.
+     * @param _amount The amount of tokens to mint. Must be less than or equal
+     * to the minterAllowance of the caller.
+     * @return A boolean that indicates if the operation was successful.
+     */
+    function mint(address _to, uint256 _amount)
+        external
+        override
+        returns (bool)
+    {
+        _totalSupply = _totalSupply + _amount;
+        balances[_to] = balances[_to] + _amount;
+        emit Transfer(address(0), _to, _amount);
+        return true;
+    }
+
+    /**
+     * @dev allows a burner to burn some of its own tokens
+     * Validates that caller is a burner and that sender is not blacklisted
+     * amount is less than or equal to the burner's account balance
      * @param _amount uint256 the amount of tokens to be burned
      */
     function burnByBurnerOnly(uint256 _amount) external override {
@@ -91,9 +99,9 @@ contract MockBurnToken is IBurnToken {
      * @return True if successful
      */
     function transferFrom(address from, address to, uint256 value) external override returns (bool) {
-        require(value <= allowed[from][msg.sender], "ERC20: transfer amount exceeds allowance");
+        require(value <= allowed[from][to], "ERC20: transfer amount exceeds allowance");
         _transfer(from, to, value);
-        allowed[from][msg.sender] = allowed[from][msg.sender] - value;
+        allowed[from][to] = allowed[from][to] - value;
         return true;
     }
 

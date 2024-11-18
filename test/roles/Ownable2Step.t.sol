@@ -1,25 +1,12 @@
-/*
- * Copyright (c) 2024, TrillionX Limited.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+// SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import "../../lib/forge-std/src/Test.sol";
-import "../../src/roles/Ownable2Step.sol";
-import "../../src/TokenBurner.sol";
+import {Test} from "../../lib/forge-std/src/Test.sol";
+import {Ownable2Step} from "../../src/roles/Ownable2Step.sol";
+import {TokenBurner} from "../../src/TokenBurner.sol";
 
 /**
+ * @custom:security-contact info@trillionnetwork.com
  * @dev Negative unit tests of third party OZ contract, Ownable2Step.
  * (Positive tests for transferOwnership and acceptOwnership are covered in
  * MessageTransmitter.t.sol, TokenMessenger.t.sol, and TokenBurner.t.sol.)
@@ -28,6 +15,8 @@ contract Ownable2StepTest is Test {
     event OwnershipTransferStarted(address indexed previousOwner, address indexed newOwner);
 
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
+
+    error OwnableUnauthorizedAccount(address account);
 
     address initialOwner = vm.addr(1505);
 
@@ -44,7 +33,7 @@ contract Ownable2StepTest is Test {
         address _newOwner = vm.addr(1506);
         vm.assume(_wrongOwner != initialOwner);
         vm.prank(_wrongOwner);
-        vm.expectRevert("Ownable: caller is not the owner");
+        vm.expectRevert(abi.encodeWithSelector(OwnableUnauthorizedAccount.selector, _wrongOwner));
         ownable.transferOwnership(_newOwner);
     }
 
