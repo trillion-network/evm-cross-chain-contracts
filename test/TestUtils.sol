@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {Pausable} from "../src/roles/Pausable.sol";
 import {Rescuable} from "../src/roles/Rescuable.sol";
@@ -62,7 +62,6 @@ contract TestUtils is Test {
     bytes32 recipient = Message.addressToBytes32(recipientAddr);
     address destinationCallerAddr = vm.addr(destinationCallerPK);
     bytes32 destinationCaller = Message.addressToBytes32(destinationCallerAddr);
-    bytes32 emptyDestinationCaller = bytes32(0);
     bytes messageBody = bytes("test message");
     uint256 maxBurnAmountPerMessage = 1000000;
     address tokenController = vm.addr(1900);
@@ -250,13 +249,13 @@ contract TestUtils is Test {
         assertEq(_ownableContract.owner(), _secondNewOwner);
     }
 
-    function _signMessageWithAttesterPK(bytes memory _message) internal returns (bytes memory) {
+    function _signMessageWithAttesterPK(bytes memory _message) internal view returns (bytes memory) {
         uint256[] memory attesterPrivateKeys = new uint256[](1);
         attesterPrivateKeys[0] = attesterPK;
         return _signMessage(_message, attesterPrivateKeys);
     }
 
-    function _signMessage(bytes memory _message, uint256[] memory _privKeys) internal returns (bytes memory) {
+    function _signMessage(bytes memory _message, uint256[] memory _privKeys) internal pure returns (bytes memory) {
         bytes memory _signaturesConcatenated = "";
 
         for (uint256 i = 0; i < _privKeys.length; i++) {

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {Test} from "../../lib/forge-std/src/Test.sol";
 import {Ownable2Step} from "../../src/roles/Ownable2Step.sol";

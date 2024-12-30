@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {TokenBurner} from "../src/TokenBurner.sol";
 import {Message} from "../src/messages/Message.sol";

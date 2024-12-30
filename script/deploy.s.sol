@@ -1,11 +1,8 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {Script} from "forge-std/Script.sol";
-import {console} from "forge-std/console.sol";
 
-import {Message} from "../src/messages/Message.sol";
-import {NonceManager} from "../src/NonceManager.sol";
 import {TokenBurner} from "../src/TokenBurner.sol";
 import {TokenMessenger} from "../src/TokenMessenger.sol";
 
@@ -70,31 +67,6 @@ contract DeployScript is Script {
     }
 
     /**
-     * @notice deploys NonceManager
-     * @param privateKey Private Key for signing the transactions
-     * @param tokenMessengerAddress TokenMessenger Contract address
-     * @return NonceManager instance
-     */
-    function deployNonceManager(uint256 privateKey, address tokenMessengerAddress) private returns (NonceManager) {
-        // Start recording transations
-        vm.startBroadcast(privateKey);
-
-        // Deploy NonceManager
-        NonceManager nonceManager = new NonceManager();
-
-        // Add Local TokenMessenger
-        nonceManager.addLocalTokenMessenger(tokenMessengerAddress);
-
-        // Add Rescuer
-        nonceManager.updateRescuer(rescuerAddress);
-
-        // Stop recording transations
-        vm.stopBroadcast();
-
-        return nonceManager;
-    }
-
-    /**
      * @notice add local burner to the TokenMessenger
      */
     function addBurnerAddressToTokenMessenger(TokenMessenger tokenMessenger, uint256 privateKey, address burnerAddress)
@@ -104,23 +76,6 @@ contract DeployScript is Script {
         vm.startBroadcast(privateKey);
 
         tokenMessenger.addLocalBurner(burnerAddress);
-
-        // Stop recording transations
-        vm.stopBroadcast();
-    }
-
-    /**
-     * @notice add nonce manager to the TokenMessenger
-     */
-    function addNonceManagerAddressToTokenMessenger(
-        TokenMessenger tokenMessenger,
-        uint256 privateKey,
-        address nonceManagerAddress
-    ) private {
-        // Start recording transations
-        vm.startBroadcast(privateKey);
-
-        tokenMessenger.addNonceManager(nonceManagerAddress);
 
         // Stop recording transations
         vm.stopBroadcast();
@@ -156,8 +111,6 @@ contract DeployScript is Script {
      * @notice main function that will be run by forge
      */
     function run(string memory chain) public {
-        console.log(chain);
-        console.log(vm.rpcUrl(chain));
         vm.createSelectFork(vm.rpcUrl(chain));
 
         // Deploy TokenMessenger
@@ -166,14 +119,8 @@ contract DeployScript is Script {
         // Deploy TokenBurner
         TokenBurner tokenBurner = deployTokenBurner(deployerPrivateKey, address(tokenMessenger));
 
-        // Deploy NonceManager
-        NonceManager nonceManager = deployNonceManager(deployerPrivateKey, address(tokenMessenger));
-
         // Add Local Minter
         addBurnerAddressToTokenMessenger(tokenMessenger, deployerPrivateKey, address(tokenBurner));
-
-        // Add Nonce Manager
-        addNonceManagerAddressToTokenMessenger(tokenMessenger, deployerPrivateKey, address(nonceManager));
 
         // Link token pair and add remote token messenger
         linkTokenPair(tokenBurner, deployerPrivateKey);

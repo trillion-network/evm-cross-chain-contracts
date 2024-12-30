@@ -4,9 +4,9 @@ Foundry-based repo for Trillion smart contracts.
 
 ## Usage
 
-### Install solc v0.8.26
+### Install solc v0.8.28
 ```shell
-solc-select use 0.8.26 --always-install
+solc-select use 0.8.28 --always-install
 ```
 
 ### Build
