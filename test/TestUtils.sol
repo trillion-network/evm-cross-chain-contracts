@@ -74,20 +74,6 @@ contract TestUtils is Test {
     // zero signature
     bytes zeroSignature = "00000000000000000000000000000000000000000000000000000000000000000";
 
-    function linkTokenPair(
-        TokenBurner tokenBurner,
-        address _localToken,
-        uint32 _remoteDomain,
-        bytes32 _remoteTokenBytes32
-    ) public {
-        vm.prank(tokenController);
-        tokenBurner.linkTokenPair(address(_localToken), _remoteDomain, _remoteTokenBytes32);
-
-        address _actualLocalToken = tokenBurner.getLocalToken(_remoteDomain, _remoteTokenBytes32);
-
-        assertEq(_actualLocalToken, address(_localToken));
-    }
-
     function addLocalTokenMessenger(TokenBurner _tokenBurner, address _localTokenMessenger) public {
         assertEq(_tokenBurner.localTokenMessenger(), address(0));
 

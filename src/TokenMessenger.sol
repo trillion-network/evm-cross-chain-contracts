@@ -21,7 +21,6 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
      * @param depositor address where deposit is transferred from
      * @param mintRecipient address receiving minted tokens on destination domain as bytes32
      * @param destinationDomain destination domain
-     * @param destinationTokenMessenger address of TokenMessenger on destination domain as bytes32
      * If equal to bytes32(0), any address can call receiveMessage().
      */
     event DepositForBurn(
@@ -30,23 +29,32 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
         uint256 amount,
         address indexed depositor,
         bytes32 mintRecipient,
-        uint32 destinationDomain,
-        bytes32 destinationTokenMessenger
+        uint32 destinationDomain
     );
 
     /**
-     * @notice Emitted when a remote TokenMessenger is added
+     * @notice Emitted when a remote domain is activated
      * @param domain remote domain
-     * @param tokenMessenger TokenMessenger on remote domain
      */
-    event RemoteTokenMessengerAdded(uint32 domain, bytes32 tokenMessenger);
+    event RemoteDomainActivated(uint32 domain);
 
     /**
-     * @notice Emitted when a remote TokenMessenger is removed
+     * @notice Emitted when a remote domain is deactivated
      * @param domain remote domain
-     * @param tokenMessenger TokenMessenger on remote domain
      */
-    event RemoteTokenMessengerRemoved(uint32 domain, bytes32 tokenMessenger);
+    event RemoteDomainDeactivated(uint32 domain);
+
+    /**
+     * @notice Emitted when a new token is added
+     * @param token address of token
+     */
+    event TokenAdded(address token);
+
+    /**
+     * @notice Emitted when a new token is removed
+     * @param token address of token
+     */
+    event TokenRemoved(address token);
 
     /**
      * @notice Emitted when the local burner is added
@@ -62,17 +70,31 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
      */
     event LocalBurnerRemoved(address localBurner);
 
+    /**
+     * @notice Emitted when next available nonce is updated
+     * @param nextAvailableNonce unique nonce
+     */
+    event NextAvailableNonceUpdated(uint256 nextAvailableNonce);
+
+    // ============ State Variables ============
+
     // Burner responsible for burning tokens on the local domain
     ITokenBurner public localBurner;
 
-    // Valid TokenMessengers on remote domains
-    mapping(uint32 => bytes32) public remoteTokenMessengers;
+    // Valid remote domains
+    mapping(uint32 => bool) public availableDomains;
+
+    // Valid tokens
+    mapping(address => bool) public acceptedTokens;
 
     // Next available nonce from this source domain
     uint64 public nextAvailableNonce;
 
-    // Fee to facilitate the bridge in ETH
+    // Fee to facilitate the bridge in native chain token
     uint256 public fee;
+
+    // Max fee to facilitate the bridge in native chain token
+    uint256 public maxFee = 1;
 
     // ============ Constructor ============
     constructor() {}
@@ -110,36 +132,54 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
 
     function setFee(uint256 _fee) external onlyOwner {
         require(_fee >= 0, "Invalid fee");
+        require(_fee < maxFee, "Invalid fee");
         fee = _fee;
     }
 
-    /**
-     * @notice Add the TokenMessenger for a remote domain.
-     * @dev Reverts if there is already a TokenMessenger set for domain.
-     * @param domain Domain of remote TokenMessenger.
-     * @param tokenMessenger Address of remote TokenMessenger as bytes32.
-     */
-    function addRemoteTokenMessenger(uint32 domain, bytes32 tokenMessenger) external onlyOwner {
-        require(tokenMessenger != bytes32(0), "bytes32(0) not allowed");
-
-        require(remoteTokenMessengers[domain] == bytes32(0), "TokenMessenger already set");
-
-        remoteTokenMessengers[domain] = tokenMessenger;
-        emit RemoteTokenMessengerAdded(domain, tokenMessenger);
+    function setMaxFee(uint256 _maxFee) external onlyOwner {
+        require(_maxFee >= 0, "Invalid max fee");
+        maxFee = _maxFee;
     }
 
     /**
-     * @notice Remove the TokenMessenger for a remote domain.
-     * @dev Reverts if there is no TokenMessenger set for `domain`.
-     * @param domain Domain of remote TokenMessenger
+     * @notice Activate a remote domain.
+     * @param domain Domain of remote chain to allow bridge
      */
-    function removeRemoteTokenMessenger(uint32 domain) external onlyOwner {
-        // No TokenMessenger set for given remote domain.
-        require(remoteTokenMessengers[domain] != bytes32(0), "No TokenMessenger set");
+    function activateDomain(uint32 domain) external onlyOwner {
+        require(domain != 0, "0 domain not allowed");
+        availableDomains[domain] = true;
+        emit RemoteDomainActivated(domain);
+    }
 
-        bytes32 _removedTokenMessenger = remoteTokenMessengers[domain];
-        delete remoteTokenMessengers[domain];
-        emit RemoteTokenMessengerRemoved(domain, _removedTokenMessenger);
+    /**
+     * @notice Deactivate a remote domain.
+     * @dev Reverts if there is no available `domain`.
+     * @param domain Domain of remote chain to allow bridge
+     */
+    function deactivateDomain(uint32 domain) external onlyOwner {
+        require(domain != 0, "0 domain not allowed");
+        availableDomains[domain] = false;
+        emit RemoteDomainDeactivated(domain);
+    }
+
+    /**
+     * @notice Add accepted token
+     * @param _token Token address to add
+     */
+    function addToken(address _token) external onlyOwner {
+        require(_token != address(0), "Zero address not allowed");
+        acceptedTokens[_token] = true;
+        emit TokenAdded(_token);
+    }
+
+    /**
+     * @notice Remove accepted token
+     * @param _token Token address to remove
+     */
+    function removeToken(address _token) external onlyOwner {
+        require(_token != address(0), "Zero address not allowed");
+        acceptedTokens[_token] = false;
+        emit TokenRemoved(_token);
     }
 
     /**
@@ -170,6 +210,15 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
     }
 
     /**
+     * @notice Update next available nonce.
+     */
+    function updateNextAvailableNonce(uint64 _nextAvailableNonce) external onlyOwner {
+        require(_nextAvailableNonce > 0, "Invalid next available nonce");
+        nextAvailableNonce = _nextAvailableNonce;
+        emit NextAvailableNonceUpdated(_nextAvailableNonce);
+    }
+
+    /**
      * @notice Withdraw by owner only, to collect payment for depositForBurn
      */
     function withdraw(uint256 amount) external onlyOwner nonReentrant {
@@ -196,9 +245,8 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
     ) internal returns (uint64 nonce) {
         require(_amount > 0, "Amount must be nonzero");
         require(_mintRecipient != bytes32(0), "Mint recipient must be nonzero");
-
-        bytes32 _destinationTokenMessenger = _getRemoteTokenMessenger(_destinationDomain);
-        require(_destinationTokenMessenger != bytes32(0), "Remote token messenger not set");
+        require(availableDomains[_destinationDomain] == true, "Destination domain not set");
+        require(acceptedTokens[_burnTokenAddress] == true, "Token is not accepted");
 
         ITokenBurner _localBurner = _getLocalBurner();
         IBurnToken _burnToken = IBurnToken(_burnTokenAddress);
@@ -213,22 +261,10 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
             _amount,
             _msgSender(),
             _mintRecipient,
-            _destinationDomain,
-            _destinationTokenMessenger
+            _destinationDomain
         );
 
         return _nonceReserved;
-    }
-
-    /**
-     * @notice return the remote TokenMessenger for the given `_domain` if one exists, else revert.
-     * @param _domain The domain for which to get the remote TokenMessenger
-     * @return _tokenMessenger The address of the TokenMessenger on `_domain` as bytes32
-     */
-    function _getRemoteTokenMessenger(uint32 _domain) internal view returns (bytes32) {
-        bytes32 _tokenMessenger = remoteTokenMessengers[_domain];
-        require(_tokenMessenger != bytes32(0), "No TokenMessenger for domain");
-        return _tokenMessenger;
     }
 
     /**
