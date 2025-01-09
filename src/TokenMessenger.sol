@@ -70,12 +70,6 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
      */
     event LocalBurnerRemoved(address localBurner);
 
-    /**
-     * @notice Emitted when next available nonce is updated
-     * @param nextAvailableNonce unique nonce
-     */
-    event NextAvailableNonceUpdated(uint256 nextAvailableNonce);
-
     // ============ State Variables ============
 
     // Burner responsible for burning tokens on the local domain
@@ -207,15 +201,6 @@ contract TokenMessenger is Rescuable, ReentrancyGuard {
 
         delete localBurner;
         emit LocalBurnerRemoved(_localBurnerAddress);
-    }
-
-    /**
-     * @notice Update next available nonce.
-     */
-    function updateNextAvailableNonce(uint64 _nextAvailableNonce) external onlyOwner {
-        require(_nextAvailableNonce > 0, "Invalid next available nonce");
-        nextAvailableNonce = _nextAvailableNonce;
-        emit NextAvailableNonceUpdated(_nextAvailableNonce);
     }
 
     /**
