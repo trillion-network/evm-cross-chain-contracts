@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 import {TokenBurner} from "../src/TokenBurner.sol";
 import {Message} from "../src/messages/Message.sol";
@@ -14,22 +14,6 @@ import {IBurnToken} from "../src/interfaces/IBurnToken.sol";
  */
 contract TokenBurnerTest is Test, TestUtils {
     /**
-     * @notice Emitted when a token pair is linked
-     * @param localToken local token to support
-     * @param remoteDomain remote domain
-     * @param remoteToken token on `remoteDomain` corresponding to `localToken`
-     */
-    event TokenPairLinked(address localToken, uint32 remoteDomain, bytes32 remoteToken);
-
-    /**
-     * @notice Emitted when a token pair is unlinked
-     * @param localToken local token address
-     * @param remoteDomain remote domain
-     * @param remoteToken token on `remoteDomain` unlinked from `localToken`
-     */
-    event TokenPairUnlinked(address localToken, uint32 remoteDomain, bytes32 remoteToken);
-
-    /**
      * @notice Emitted when a burn limit per message is set for a particular token
      * @param token local token address
      * @param burnLimitPerMessage burn limit per message for `token`
@@ -42,14 +26,10 @@ contract TokenBurnerTest is Test, TestUtils {
      */
     event SetTokenController(address tokenController);
 
-    uint32 remoteDomain = 0;
-
     MockBurnToken localToken;
-    MockBurnToken remoteToken;
     TokenBurner tokenBurner;
 
     address localTokenAddress;
-    bytes32 remoteTokenBytes32;
     address recipientAddress = address(vm.addr(1506));
     address localTokenMessenger = address(vm.addr(1507));
     address nonTokenMessenger = address(vm.addr(1508));
@@ -59,8 +39,6 @@ contract TokenBurnerTest is Test, TestUtils {
         tokenBurner = new TokenBurner(tokenController);
         localToken = new MockBurnToken();
         localTokenAddress = address(localToken);
-        remoteToken = new MockBurnToken();
-        remoteTokenBytes32 = Message.addressToBytes32(address(remoteToken));
         tokenBurner.addLocalTokenMessenger(localTokenMessenger);
         tokenBurner.updatePauser(pauser);
     }
@@ -82,10 +60,10 @@ contract TokenBurnerTest is Test, TestUtils {
         vm.stopPrank();
     }
 
-    function testBurn_revertsIfCallerIsNotRegisteredTokenMessenger(uint256 _amount, address _remoteToken) public {
+    function testBurn_revertsIfCallerIsNotRegisteredTokenMessenger(uint256 _amount, address _token) public {
         vm.prank(nonTokenMessenger);
         vm.expectRevert("Caller not local TokenMessenger");
-        tokenBurner.burn(_remoteToken, _amount);
+        tokenBurner.burn(_token, _amount);
     }
 
     function testBurn_revertsWhenPaused() public {
@@ -125,55 +103,6 @@ contract TokenBurnerTest is Test, TestUtils {
         vm.startPrank(localTokenMessenger);
         tokenBurner.burn(localTokenAddress, _amount);
         vm.stopPrank();
-    }
-
-    function testLinkTokenPair_succeeds() public {
-        _linkTokenPair(localTokenAddress);
-    }
-
-    function testLinkTokenPair_revertsOnAlreadyLinkedToken() public {
-        _linkTokenPair(localTokenAddress);
-        vm.expectRevert("Unable to link token pair");
-        vm.prank(tokenController);
-        tokenBurner.linkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
-    }
-
-    function testLinkTokenPair_revertsWhenCalledByNonOwner() public {
-        expectRevertWithWrongTokenController();
-        tokenBurner.linkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
-    }
-
-    function testUnlinkTokenPair_succeeds() public {
-        _linkTokenPair(localTokenAddress);
-
-        bytes32 remoteTokensKey = _hashRemoteDomainAndToken(remoteDomain, remoteTokenBytes32);
-        assertEq(tokenBurner.remoteTokensToLocalTokens(remoteTokensKey), localTokenAddress);
-
-        vm.prank(tokenController);
-        tokenBurner.unlinkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
-
-        address localTokenResultAfterUnlink = tokenBurner.getLocalToken(remoteDomain, remoteTokenBytes32);
-        assertEq(localTokenResultAfterUnlink, address(0));
-    }
-
-    function testUnlinkTokenPair_revertsOnAlreadyUnlinkedToken() public {
-        vm.prank(tokenController);
-        vm.expectRevert("Unable to unlink token pair");
-        tokenBurner.unlinkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
-    }
-
-    function testUnlinkTokenPair_revertsWhenCalledByNonTokenController() public {
-        expectRevertWithWrongTokenController();
-        tokenBurner.unlinkTokenPair(address(localToken), remoteDomain, remoteTokenBytes32);
-    }
-
-    function testGetLocalToken_succeeds() public {
-        _linkTokenPair(localTokenAddress);
-    }
-
-    function testGetLocalToken_findsNoLocalToken() public {
-        address _result = tokenBurner.getLocalToken(remoteDomain, remoteTokenBytes32);
-        assertEq(_result, address(0));
     }
 
     function testSetMaxBurnAmountPerMessage_succeeds(address _localToken, uint256 _burnLimitPerMessage) public {
@@ -270,10 +199,6 @@ contract TokenBurnerTest is Test, TestUtils {
         transferOwnershipWithoutAcceptingThenTransferToNewOwner(address(tokenBurner), _newOwner, _secondNewOwner);
     }
 
-    function _linkTokenPair(address _localToken) internal {
-        linkTokenPair(tokenBurner, _localToken, remoteDomain, remoteTokenBytes32);
-    }
-
     function _burn(uint256 _amount) internal {
         address mockTokenMessenger = vm.addr(1507);
 
@@ -293,15 +218,5 @@ contract TokenBurnerTest is Test, TestUtils {
         // assert balance and total supply decreased back to 0
         assertEq(localToken.balanceOf(recipientAddress), 0);
         assertEq(localToken.totalSupply(), 0);
-    }
-
-    /**
-     * @notice hashes packed `_remoteDomain` and `_remoteToken`.
-     * @param _remoteDomain Domain where message originated from
-     * @param _remoteToken Address of remote token as bytes32
-     * @return keccak hash of packed remote domain and token
-     */
-    function _hashRemoteDomainAndToken(uint32 _remoteDomain, bytes32 _remoteToken) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_remoteDomain, _remoteToken));
     }
 }

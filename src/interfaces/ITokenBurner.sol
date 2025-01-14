@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.8.26;
+pragma solidity 0.8.28;
 
 /**
  * @title ITokenBurner
@@ -14,14 +14,6 @@ interface ITokenBurner {
      * account balance of the given `_burnToken`.
      */
     function burn(address burnToken, uint256 amount) external;
-
-    /**
-     * @notice Get the local token associated with the given remote domain and token.
-     * @param remoteDomain Remote domain
-     * @param remoteToken Remote token
-     * @return local token address
-     */
-    function getLocalToken(uint32 remoteDomain, bytes32 remoteToken) external view returns (address);
 
     /**
      * @notice Set the token controller of this ITokenBurner. Token controller
